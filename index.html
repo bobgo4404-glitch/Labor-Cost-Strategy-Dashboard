@@ -706,6 +706,9 @@
       const SHARED_COLLECTION = "global_shared_data";
       const HR_MANAGER_SOURCE_SEGMENTS = ["artifacts", "hr-manager-6635c", "public", "data", "employees"];
       const HR_MANAGER_SOURCE_PATH = HR_MANAGER_SOURCE_SEGMENTS.join("/");
+      const SOURCE_EXCLUSION_TYPE = "source_exclusion";
+      const sourceExclusionKey = (source, sourceDocId) => `${source || ""}:${sourceDocId || ""}`;
+      const sourceExclusionDocId = (source, sourceDocId) => `exclude_${source || "unknown"}_${sourceDocId || "unknown"}`;
 
       const DEFAULT_SETTINGS = {
         annualRevenue: 12000000000,
@@ -1152,6 +1155,7 @@
         const [peopleType, setPeopleType] = useState("all");
         const [peoplePage, setPeoplePage] = useState(1);
         const defaultsEnsuredRef = useRef(false);
+        const sourceExclusionsRef = useRef(new Set());
 
         const compositionChartRef = useRef(null);
         const gradeChartRef = useRef(null);
@@ -1229,7 +1233,8 @@
               unSubData = fns.onSnapshot(
                 q,
                 async (snapshot) => {
-                  const nextEmployees = [];
+                  const rawEmployees = [];
+                  const nextExclusions = new Set();
                   let nextSettings = null;
                   let nextScenario = null;
                   let nextForecast = null;
@@ -1239,7 +1244,9 @@
                   snapshot.forEach((d) => {
                     const data = d.data();
                     if (data.type === "employee") {
-                      nextEmployees.push({ id: d.id, ...data });
+                      rawEmployees.push({ id: d.id, ...data });
+                    } else if (data.type === SOURCE_EXCLUSION_TYPE) {
+                      nextExclusions.add(sourceExclusionKey(data.source, data.sourceDocId));
                     } else if (d.id === "settings_main") {
                       nextSettings = { ...DEFAULT_SETTINGS, ...data };
                     } else if (d.id === "scenario_main") {
@@ -1252,6 +1259,10 @@
                       nextLogs.push({ id: d.id, ...data });
                     }
                   });
+                  sourceExclusionsRef.current = nextExclusions;
+                  const nextEmployees = rawEmployees.filter(
+                    (emp) => !emp.sourceDocId || !nextExclusions.has(sourceExclusionKey(emp.source, emp.sourceDocId))
+                  );
 
                   setEmployees(
                     nextEmployees.sort((a, b) =>
@@ -1301,6 +1312,9 @@
                 async (snapshot) => {
                   try {
                     const tasks = snapshot.docs.map((d) => {
+                      if (sourceExclusionsRef.current.has(sourceExclusionKey("hr_manager", d.id))) {
+                        return Promise.resolve();
+                      }
                       const x = d.data() || {};
                       const mapped = {
                         type: "employee",
@@ -2022,6 +2036,24 @@
           if (!deleteTarget) return;
           try {
             const { fns, db } = services;
+            if (deleteTarget.source === "hr_manager" && deleteTarget.sourceDocId) {
+              const key = sourceExclusionKey(deleteTarget.source, deleteTarget.sourceDocId);
+              sourceExclusionsRef.current = new Set([...sourceExclusionsRef.current, key]);
+              await fns.setDoc(
+                fns.doc(db, SHARED_COLLECTION, sourceExclusionDocId(deleteTarget.source, deleteTarget.sourceDocId)),
+                {
+                  type: SOURCE_EXCLUSION_TYPE,
+                  source: deleteTarget.source,
+                  sourcePath: deleteTarget.sourcePath || HR_MANAGER_SOURCE_PATH,
+                  sourceDocId: deleteTarget.sourceDocId,
+                  employeeDocId: deleteTarget.id,
+                  employeeName: deleteTarget.name || "",
+                  createdAt: fns.serverTimestamp(),
+                  updatedAt: fns.serverTimestamp(),
+                },
+                { merge: true }
+              );
+            }
             await fns.deleteDoc(fns.doc(db, SHARED_COLLECTION, deleteTarget.id));
             await addLog("employee_delete", `${deleteTarget.name}/${deleteTarget.department}`);
             setToast({ type: "success", message: "직원 정보가 삭제되었습니다." });
