@@ -873,7 +873,10 @@
         "부서",
         "직급",
         "고용형태",
+        "급여유형",
         "월기본급",
+        "시급",
+        "월소정근로시간",
         "연간고정수당",
         "연간상여금",
         "연간성과급",
@@ -885,7 +888,25 @@
         "",
         "",
         "",
+        "월급제",
         "3500000",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ];
+      const EMPLOYEE_TEMPLATE_HOURLY_SAMPLE = [
+        "김생산",
+        "생산1팀",
+        "사원",
+        "정규직",
+        "시급제",
+        "",
+        "12000",
+        "209",
         "",
         "",
         "",
@@ -897,7 +918,10 @@
         department: ["부서", "조직", "팀", "department", "dept"],
         grade: ["직급", "직위", "grade", "position", "rank"],
         employmentType: ["고용형태", "계약유형", "employmenttype", "employment"],
+        wageType: ["급여유형", "급여형태", "임금유형", "임금형태", "wagetype", "paytype"],
         baseSalary: ["월기본급", "월 기본급", "기본급", "월급", "monthlybasesalary", "basesalary", "monthlysalary"],
+        hourlyWage: ["시급", "시간급", "hourlywage", "hourlyrate"],
+        monthlyHours: ["월소정근로시간", "월 소정근로시간", "월근로시간", "소정근로시간", "monthlyhours"],
         fixedAllowance: ["연간고정수당", "고정수당", "fixedallowance", "allowance"],
         bonus: ["연간상여금", "상여금", "bonus"],
         performancePay: ["연간성과급", "성과급", "performancepay", "incentive"],
@@ -905,6 +929,12 @@
         retirementProvision: ["연간퇴직충당금", "퇴직충당금", "retirementprovision", "retirement"],
       };
       const normalizeCsvHeader = (v) => String(v || "").replace(/^\uFEFF/, "").replace(/[\s_()-]/g, "").toLowerCase();
+      const normalizeWageType = (v, hourlyWage = 0) => {
+        const text = String(v || "").trim().toLowerCase();
+        if (text.includes("시급") || text.includes("hour")) return "시급제";
+        if (text.includes("월급") || text.includes("월")) return "월급제";
+        return safeNumber(hourlyWage) > 0 ? "시급제" : "월급제";
+      };
       const escapeCsvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
       const parseCsvRows = (text) => {
         const rows = [];
@@ -954,20 +984,26 @@
             const field = fieldByIndex[idx];
             if (field) raw[field] = String(cell || "").trim();
           });
-          if (!raw.name && !raw.department && !raw.grade && !raw.baseSalary) return;
+          if (!raw.name && !raw.department && !raw.grade && !raw.baseSalary && !raw.hourlyWage) return;
+          const hourlyWage = parseHrMoney(raw.hourlyWage);
+          const wageType = normalizeWageType(raw.wageType, hourlyWage);
           const payload = {
             name: raw.name || "",
             department: raw.department || "미지정",
             grade: raw.grade || "미지정",
             employmentType: raw.employmentType || "정규직",
+            wageType,
             baseSalary: parseHrMoney(raw.baseSalary),
+            hourlyWage,
+            monthlyHours: safeNumber(raw.monthlyHours) || (wageType === "시급제" ? 209 : 0),
             fixedAllowance: parseHrMoney(raw.fixedAllowance),
             bonus: parseHrMoney(raw.bonus),
             performancePay: parseHrMoney(raw.performancePay),
             insuranceEmployer: parseHrMoney(raw.insuranceEmployer),
             retirementProvision: parseHrMoney(raw.retirementProvision),
           };
-          if (!payload.name || payload.baseSalary <= 0) {
+          const hasValidBase = payload.wageType === "시급제" ? payload.hourlyWage > 0 : payload.baseSalary > 0;
+          if (!payload.name || !hasValidBase) {
             invalid += 1;
             return;
           }
@@ -976,8 +1012,17 @@
         return { valid, invalid };
       };
 
+      const calcEmployeeAnnualBase = (emp) => {
+        const wageType = normalizeWageType(emp.wageType, emp.hourlyWage);
+        if (wageType === "시급제") {
+          const monthlyHours = safeNumber(emp.monthlyHours) || 209;
+          return safeNumber(emp.hourlyWage) * monthlyHours * 12;
+        }
+        return annualFromMonthly(emp.baseSalary);
+      };
+
       const calcEmployeeTotal = (emp) => {
-        const annualBase = annualFromMonthly(emp.baseSalary);
+        const annualBase = calcEmployeeAnnualBase(emp);
         const wage =
           annualBase +
           safeNumber(emp.fixedAllowance) +
@@ -1322,7 +1367,7 @@
           const incentiveFactor = pct(scenario.incentivePayoutRate);
 
           const simulatedExistingCost = employees.reduce((sum, emp) => {
-            const base = annualFromMonthly(emp.baseSalary);
+            const base = calcEmployeeAnnualBase(emp);
             const allowance = safeNumber(emp.fixedAllowance);
             const bonus = safeNumber(emp.bonus) * bonusFactor;
             const incentive = safeNumber(emp.performancePay) * incentiveFactor;
@@ -1471,7 +1516,7 @@
             const bonusFactor = 1 + pct(clone.bonusAdjustRate);
             const incentiveFactor = pct(clone.incentivePayoutRate);
             const simulatedExistingCost = employees.reduce((sum, emp) => {
-              const base = annualFromMonthly(emp.baseSalary);
+              const base = calcEmployeeAnnualBase(emp);
               const allowance = safeNumber(emp.fixedAllowance);
               const bonus = safeNumber(emp.bonus) * bonusFactor;
               const incentive = safeNumber(emp.performancePay) * incentiveFactor;
@@ -1624,7 +1669,7 @@
           if (!window.Chart || !compositionChartRef.current) return;
           const totals = employees.reduce(
             (acc, e) => {
-              acc.base += annualFromMonthly(e.baseSalary);
+              acc.base += calcEmployeeAnnualBase(e);
               acc.allowance += safeNumber(e.fixedAllowance);
               acc.bonus += safeNumber(e.bonus);
               acc.performance += safeNumber(e.performancePay);
@@ -1638,7 +1683,7 @@
           compositionChart.current = new Chart(compositionChartRef.current, {
             type: "pie",
             data: {
-              labels: ["기본급", "고정수당", "상여금", "성과급", "4대보험", "퇴직충당금"],
+              labels: ["기본급/시급환산", "고정수당", "상여금", "성과급", "4대보험", "퇴직충당금"],
               datasets: [
                 {
                   data: [
@@ -1910,7 +1955,7 @@
         };
 
         const downloadEmployeeTemplate = () => {
-          const rows = [EMPLOYEE_TEMPLATE_HEADERS, EMPLOYEE_TEMPLATE_SAMPLE];
+          const rows = [EMPLOYEE_TEMPLATE_HEADERS, EMPLOYEE_TEMPLATE_SAMPLE, EMPLOYEE_TEMPLATE_HOURLY_SAMPLE];
           const csv = `\uFEFF${rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n")}`;
           const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
           const url = URL.createObjectURL(blob);
@@ -1938,7 +1983,7 @@
             }
             const { valid, invalid } = parseEmployeeCsv(text);
             if (!valid.length) {
-              setToast({ type: "error", message: "업로드 가능한 직원 데이터가 없습니다. 이름과 월기본급은 필수입니다." });
+              setToast({ type: "error", message: "업로드 가능한 직원 데이터가 없습니다. 이름과 월기본급 또는 시급은 필수입니다." });
               return;
             }
             const { fns, db } = services;
@@ -2201,8 +2246,8 @@
                     </div>
                   </div>
                   <div className="panel-muted rounded-lg p-3 text-sm mb-3 no-print">
-                    양식은 CSV 파일입니다. 필수 입력은 이름과 월기본급이며, 부서/직급/고용형태와 나머지 금액 항목은 비워두면 미지정 또는 0으로 처리됩니다.
-                    금액은 원 단위 또는 만원/억 표기를 지원합니다.
+                    양식은 CSV 파일입니다. 월급제는 이름과 월기본급, 시급제는 이름과 시급이 필수입니다.
+                    시급제의 월소정근로시간은 비워두면 209시간으로 계산되며, 나머지 금액 항목은 비워두면 0으로 처리됩니다.
                   </div>
                   <div className="table-toolbar no-print">
                     <input className="toolbar-input" value={peopleSearch} onChange={(e) => setPeopleSearch(e.target.value)} placeholder="이름, 부서, 직급 검색" />
@@ -2227,7 +2272,8 @@
                           <th>부서</th>
                           <th>직급</th>
                           <th>고용형태</th>
-                          <th className="text-right">월 기본급</th>
+                          <th>급여유형</th>
+                          <th className="text-right">기준급여</th>
                           <th className="text-right">총연봉</th>
                           <th className="no-print">관리</th>
                         </tr>
@@ -2239,7 +2285,12 @@
                             <td>{e.department || "미지정"}</td>
                             <td>{e.grade || "미지정"}</td>
                             <td>{e.employmentType || "미지정"}</td>
-                            <td className="text-right metric-number">{formatCurrencyManwon(e.baseSalary)}</td>
+                            <td>{normalizeWageType(e.wageType, e.hourlyWage)}</td>
+                            <td className="text-right metric-number">
+                              {normalizeWageType(e.wageType, e.hourlyWage) === "시급제"
+                                ? `${formatCurrency(e.hourlyWage)} / ${formatNumber(e.monthlyHours || 209)}h`
+                                : formatCurrencyManwon(e.baseSalary)}
+                            </td>
                             <td className="text-right font-semibold metric-number">{formatCurrencyManwon(calcEmployeeTotal(e))}</td>
                             <td className="no-print">
                               <div className="flex gap-1">
@@ -2250,7 +2301,7 @@
                           </tr>
                         ))}
                         {!pagedEmployees.length && (
-                          <tr><td colSpan="7" className="empty-state">조회 조건에 맞는 직원이 없습니다.</td></tr>
+                          <tr><td colSpan="8" className="empty-state">조회 조건에 맞는 직원이 없습니다.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -2523,12 +2574,20 @@
 
       function EmployeeEditor({ data, onClose, onSave }) {
         const [form, setForm] = useState(
-          data || {
+          data ? {
+            hourlyWage: 0,
+            ...data,
+            wageType: normalizeWageType(data.wageType, data.hourlyWage),
+            monthlyHours: safeNumber(data.monthlyHours) || (safeNumber(data.hourlyWage) > 0 ? 209 : 0),
+          } : {
             name: "",
             department: "",
             grade: "",
             employmentType: "정규직",
+            wageType: "월급제",
             baseSalary: 0,
+            hourlyWage: 0,
+            monthlyHours: 209,
             fixedAllowance: 0,
             bonus: 0,
             performancePay: 0,
@@ -2556,7 +2615,20 @@
                   onChange={(v) => setField("employmentType", v)}
                   options={["정규직", "계약직", "파견"]}
                 />
-                <NumberInput label="월 기본급" value={form.baseSalary} onChange={(v) => setField("baseSalary", v)} />
+                <SelectInput
+                  label="급여유형"
+                  value={normalizeWageType(form.wageType, form.hourlyWage)}
+                  onChange={(v) => setForm((prev) => ({ ...prev, wageType: v, monthlyHours: v === "시급제" ? safeNumber(prev.monthlyHours) || 209 : prev.monthlyHours }))}
+                  options={["월급제", "시급제"]}
+                />
+                {normalizeWageType(form.wageType, form.hourlyWage) === "시급제" ? (
+                  <>
+                    <NumberInput label="시급" value={form.hourlyWage} onChange={(v) => setField("hourlyWage", v)} />
+                    <NumberInput label="월 소정근로시간" value={form.monthlyHours || 209} onChange={(v) => setField("monthlyHours", v)} />
+                  </>
+                ) : (
+                  <NumberInput label="월 기본급" value={form.baseSalary} onChange={(v) => setField("baseSalary", v)} />
+                )}
                 <NumberInput label="고정수당" value={form.fixedAllowance} onChange={(v) => setField("fixedAllowance", v)} />
                 <NumberInput label="상여금" value={form.bonus} onChange={(v) => setField("bonus", v)} />
                 <NumberInput label="성과급" value={form.performancePay} onChange={(v) => setField("performancePay", v)} />
@@ -2564,7 +2636,12 @@
                 <NumberInput label="퇴직충당금" value={form.retirementProvision} onChange={(v) => setField("retirementProvision", v)} />
               </div>
               <div className="panel-muted rounded-lg p-3 mt-3 text-sm">
-                총연봉(자동계산, 월 기본급 x 12): <b>{formatCurrencyManwon(calcEmployeeTotal(form))}</b>
+                총연봉(자동계산): <b>{formatCurrencyManwon(calcEmployeeTotal(form))}</b>
+                <span className="subtext ml-2">
+                  {normalizeWageType(form.wageType, form.hourlyWage) === "시급제"
+                    ? `시급 × ${formatNumber(form.monthlyHours || 209)}시간 × 12개월 기준`
+                    : "월 기본급 × 12개월 기준"}
+                </span>
               </div>
               <div className="flex justify-end gap-2 mt-4">
                 <button className="btn-secondary px-4 py-2 rounded-xl" onClick={onClose}>
@@ -2573,8 +2650,17 @@
                 <button
                   className="btn-primary px-4 py-2 rounded-xl"
                   onClick={() => {
-                    if (!form.name || !form.department || !form.grade) {
-                      alert("이름/부서/직급을 입력하세요.");
+                    const wageType = normalizeWageType(form.wageType, form.hourlyWage);
+                    if (!form.name) {
+                      alert("이름을 입력하세요.");
+                      return;
+                    }
+                    if (wageType === "시급제" && safeNumber(form.hourlyWage) <= 0) {
+                      alert("시급을 입력하세요.");
+                      return;
+                    }
+                    if (wageType === "월급제" && safeNumber(form.baseSalary) <= 0) {
+                      alert("월 기본급을 입력하세요.");
                       return;
                     }
                     onSave(form, data?.id);
