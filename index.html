@@ -236,7 +236,7 @@
       }
       .summary-strip {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 16px;
       }
       .summary-item {
@@ -435,6 +435,8 @@
       .kpi-card {
         position: relative;
         overflow: hidden;
+        min-height: 96px;
+        padding-right: 52px !important;
       }
       .kpi-card::before {
         content: "";
@@ -444,6 +446,13 @@
         right: 0;
         height: 3px;
         background: linear-gradient(90deg, var(--primary), var(--accent));
+      }
+      .kpi-icon {
+        position: absolute;
+        right: 18px;
+        bottom: 18px;
+        font-size: 1rem;
+        line-height: 1;
       }
       .form-control {
         width: 100%;
@@ -465,8 +474,15 @@
         letter-spacing: 0;
       }
       .metric-lg {
-        font-size: clamp(1.2rem, 1.2vw + 0.9rem, 1.85rem);
-        line-height: 1.15;
+        font-size: 1.78rem;
+        line-height: 1.08;
+        white-space: nowrap;
+      }
+      .metric-lg.metric-compact {
+        font-size: 1.46rem;
+      }
+      .metric-lg.metric-tight {
+        font-size: 1.24rem;
       }
       .metric-md {
         font-size: 1.02rem;
@@ -1246,13 +1262,13 @@
 
       function KPI({ icon, label, value, tone }) {
         const toneClass = tone === "danger" ? "text-red-500" : tone === "warn" ? "text-amber-500" : "primary";
+        const valueText = String(value ?? "");
+        const sizeClass = valueText.length > 15 ? "metric-tight" : valueText.length > 10 ? "metric-compact" : "";
         return (
           <div className="panel kpi-card rounded-2xl p-4 shadow-sm fade-in">
+            <i className={`kpi-icon ${icon} ${toneClass}`}></i>
             <div className="text-xs subtext mb-2">{label}</div>
-            <div className="flex items-center justify-between">
-              <div className={`metric-number metric-lg font-extrabold ${toneClass}`}>{value}</div>
-              <i className={`${icon} ${toneClass}`}></i>
-            </div>
+            <div className={`metric-number metric-lg ${sizeClass} font-extrabold ${toneClass}`}>{value}</div>
           </div>
         );
       }
@@ -2227,39 +2243,55 @@
           }
         };
 
-        const saveScenario = async (patch) => {
+        const saveScenario = async (patch, options = {}) => {
           const next = { ...scenarioRef.current, ...patch };
           scenarioRef.current = next;
           setScenario(next);
-          const saved = await saveDoc("scenario_main", { type: "scenario", ...next }, "시뮬레이션 값이 저장되었습니다.");
-          if (!saved) return;
+          const saved = await saveDoc(
+            "scenario_main",
+            { type: "scenario", ...next },
+            options.silent ? null : "시뮬레이션 값이 저장되었습니다."
+          );
+          if (!saved || options.silent) return;
           await addLog("scenario_update", "시나리오 파라미터 변경");
         };
 
-        const saveForecast = async (patch) => {
+        const saveForecast = async (patch, options = {}) => {
           const next = { ...forecastInputRef.current, ...patch };
           forecastInputRef.current = next;
           setForecastInput(next);
-          const saved = await saveDoc("forecast_main", { type: "forecast", ...next }, "3년 Forecast 값이 저장되었습니다.");
-          if (!saved) return;
+          const saved = await saveDoc(
+            "forecast_main",
+            { type: "forecast", ...next },
+            options.silent ? null : "3년 Forecast 값이 저장되었습니다."
+          );
+          if (!saved || options.silent) return;
           await addLog("forecast_update", "Forecast 파라미터 변경");
         };
 
-        const saveProductivity = async (patch) => {
+        const saveProductivity = async (patch, options = {}) => {
           const next = { ...productivityRef.current, ...patch };
           productivityRef.current = next;
           setProductivity(next);
-          const saved = await saveDoc("productivity_main", { type: "productivity", ...next }, "생산성 분석 값이 저장되었습니다.");
-          if (!saved) return;
+          const saved = await saveDoc(
+            "productivity_main",
+            { type: "productivity", ...next },
+            options.silent ? null : "생산성 분석 값이 저장되었습니다."
+          );
+          if (!saved || options.silent) return;
           await addLog("productivity_update", "생산성 파라미터 변경");
         };
 
-        const saveSettings = async (patch) => {
+        const saveSettings = async (patch, options = {}) => {
           const next = { ...settingsRef.current, ...patch };
           settingsRef.current = next;
           setSettings(next);
-          const saved = await saveDoc("settings_main", { type: "settings", ...next }, "기준값이 저장되었습니다.");
-          if (!saved) return;
+          const saved = await saveDoc(
+            "settings_main",
+            { type: "settings", ...next },
+            options.silent ? null : "기준값이 저장되었습니다."
+          );
+          if (!saved || options.silent) return;
           await addLog("settings_update", "기준 매출/경고치 변경");
         };
 
@@ -2583,8 +2615,8 @@
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-core mb-3">운영 기준값</h2>
                     <div className="grid md:grid-cols-2 gap-3">
-                      <NumberInput label="연간 매출(원)" value={settings.annualRevenue} onChange={(v) => saveSettings({ annualRevenue: v })} />
-                      <NumberInput label="인건비율 경고 기준(%)" value={settings.warningLaborRatio} onChange={(v) => saveSettings({ warningLaborRatio: v })} />
+                      <NumberInput label="연간 매출(원)" value={settings.annualRevenue} onChange={(v, options) => saveSettings({ annualRevenue: v }, options)} />
+                      <NumberInput label="인건비율 경고 기준(%)" value={settings.warningLaborRatio} onChange={(v, options) => saveSettings({ warningLaborRatio: v }, options)} />
                     </div>
                     <div className="score-row mt-4"><span>현재 인건비율</span><b className="metric-number">{formatPercent(laborRatio)}</b></div>
                     <div className="score-row"><span>시나리오 적용 후</span><b className="metric-number">{formatPercent(scenarioResult.ratio)}</b></div>
@@ -2624,14 +2656,14 @@
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-sim mb-3">시나리오 입력</h2>
                     <div className="grid md:grid-cols-2 gap-3">
-                      <NumberInput label="인원 증감(명)" value={scenario.headcountChange} onChange={(v) => saveScenario({ headcountChange: v })} />
-                      <NumberInput label="평균 임금 인상률(%)" value={scenario.avgRaiseRate} onChange={(v) => saveScenario({ avgRaiseRate: v })} />
-                      <NumberInput label="직급 승진 인상률(%)" value={scenario.promotionRaiseRate} onChange={(v) => saveScenario({ promotionRaiseRate: v })} />
-                      <NumberInput label="현행 최저시급(원)" value={scenario.currentMinimumWage} onChange={(v) => saveScenario({ currentMinimumWage: v })} />
-                      <NumberInput label="적용 최저시급(원)" value={scenario.targetMinimumWage} onChange={(v) => saveScenario({ targetMinimumWage: v })} />
-                      <NumberInput label="상여금 조정률(%)" value={scenario.bonusAdjustRate} onChange={(v) => saveScenario({ bonusAdjustRate: v })} />
-                      <NumberInput label="성과급 지급률(%)" value={scenario.incentivePayoutRate} onChange={(v) => saveScenario({ incentivePayoutRate: v })} />
-                      <NumberInput label="4.5일제 임금 조정률(%)" value={scenario.fourHalfDayAdjustRate} onChange={(v) => saveScenario({ fourHalfDayAdjustRate: v })} />
+                      <NumberInput label="인원 증감(명)" value={scenario.headcountChange} onChange={(v, options) => saveScenario({ headcountChange: v }, options)} />
+                      <NumberInput label="평균 임금 인상률(%)" value={scenario.avgRaiseRate} onChange={(v, options) => saveScenario({ avgRaiseRate: v }, options)} />
+                      <NumberInput label="직급 승진 인상률(%)" value={scenario.promotionRaiseRate} onChange={(v, options) => saveScenario({ promotionRaiseRate: v }, options)} />
+                      <NumberInput label="현행 최저시급(원)" value={scenario.currentMinimumWage} onChange={(v, options) => saveScenario({ currentMinimumWage: v }, options)} />
+                      <NumberInput label="적용 최저시급(원)" value={scenario.targetMinimumWage} onChange={(v, options) => saveScenario({ targetMinimumWage: v }, options)} />
+                      <NumberInput label="상여금 조정률(%)" value={scenario.bonusAdjustRate} onChange={(v, options) => saveScenario({ bonusAdjustRate: v }, options)} />
+                      <NumberInput label="성과급 지급률(%)" value={scenario.incentivePayoutRate} onChange={(v, options) => saveScenario({ incentivePayoutRate: v }, options)} />
+                      <NumberInput label="4.5일제 임금 조정률(%)" value={scenario.fourHalfDayAdjustRate} onChange={(v, options) => saveScenario({ fourHalfDayAdjustRate: v }, options)} />
                     </div>
                   </div>
                   <div className="panel p-4 md:p-5">
@@ -2664,14 +2696,14 @@
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-forecast mb-3">계획 입력</h2>
                     <div className="grid md:grid-cols-2 gap-3">
-                      <NumberInput label="연간 인상률(%)" value={forecastInput.annualRaiseRate} onChange={(v) => saveForecast({ annualRaiseRate: v })} />
-                      <NumberInput label="매출 성장률(%)" value={forecastInput.revenueGrowthRate} onChange={(v) => saveForecast({ revenueGrowthRate: v })} />
-                      <NumberInput label="Y1 채용(명)" value={forecastInput.hireY1} onChange={(v) => saveForecast({ hireY1: v })} />
-                      <NumberInput label="Y1 퇴직(명)" value={forecastInput.retireY1} onChange={(v) => saveForecast({ retireY1: v })} />
-                      <NumberInput label="Y2 채용(명)" value={forecastInput.hireY2} onChange={(v) => saveForecast({ hireY2: v })} />
-                      <NumberInput label="Y2 퇴직(명)" value={forecastInput.retireY2} onChange={(v) => saveForecast({ retireY2: v })} />
-                      <NumberInput label="Y3 채용(명)" value={forecastInput.hireY3} onChange={(v) => saveForecast({ hireY3: v })} />
-                      <NumberInput label="Y3 퇴직(명)" value={forecastInput.retireY3} onChange={(v) => saveForecast({ retireY3: v })} />
+                      <NumberInput label="연간 인상률(%)" value={forecastInput.annualRaiseRate} onChange={(v, options) => saveForecast({ annualRaiseRate: v }, options)} />
+                      <NumberInput label="매출 성장률(%)" value={forecastInput.revenueGrowthRate} onChange={(v, options) => saveForecast({ revenueGrowthRate: v }, options)} />
+                      <NumberInput label="Y1 채용(명)" value={forecastInput.hireY1} onChange={(v, options) => saveForecast({ hireY1: v }, options)} />
+                      <NumberInput label="Y1 퇴직(명)" value={forecastInput.retireY1} onChange={(v, options) => saveForecast({ retireY1: v }, options)} />
+                      <NumberInput label="Y2 채용(명)" value={forecastInput.hireY2} onChange={(v, options) => saveForecast({ hireY2: v }, options)} />
+                      <NumberInput label="Y2 퇴직(명)" value={forecastInput.retireY2} onChange={(v, options) => saveForecast({ retireY2: v }, options)} />
+                      <NumberInput label="Y3 채용(명)" value={forecastInput.hireY3} onChange={(v, options) => saveForecast({ hireY3: v }, options)} />
+                      <NumberInput label="Y3 퇴직(명)" value={forecastInput.retireY3} onChange={(v, options) => saveForecast({ retireY3: v }, options)} />
                     </div>
                   </div>
                   <div className="panel p-4 md:p-5">
@@ -2702,9 +2734,9 @@
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-productivity mb-3">생산성 입력</h2>
                     <div className="grid md:grid-cols-3 gap-3">
-                      <NumberInput label="연간 생산량" value={productivity.annualProduction} onChange={(v) => saveProductivity({ annualProduction: v })} />
-                      <NumberInput label="1인당 생산성" value={productivity.productivityPerPerson} onChange={(v) => saveProductivity({ productivityPerPerson: v })} />
-                      <NumberInput label="잔업시간" value={productivity.overtimeHours} onChange={(v) => saveProductivity({ overtimeHours: v })} />
+                      <NumberInput label="연간 생산량" value={productivity.annualProduction} onChange={(v, options) => saveProductivity({ annualProduction: v }, options)} />
+                      <NumberInput label="1인당 생산성" value={productivity.productivityPerPerson} onChange={(v, options) => saveProductivity({ productivityPerPerson: v }, options)} />
+                      <NumberInput label="잔업시간" value={productivity.overtimeHours} onChange={(v, options) => saveProductivity({ overtimeHours: v }, options)} />
                     </div>
                   </div>
                   <div className="panel p-4 md:p-5">
@@ -2820,7 +2852,25 @@
 
       function NumberInput({ label, value, onChange }) {
         const [local, setLocal] = useState(value ?? 0);
-        useEffect(() => setLocal(value ?? 0), [value]);
+        const lastCommittedRef = useRef(safeNumber(value));
+        useEffect(() => {
+          setLocal(value ?? 0);
+          lastCommittedRef.current = safeNumber(value);
+        }, [value]);
+        const commit = (raw, options = {}) => {
+          const text = String(raw ?? "");
+          if (["", "-", ".", "-."].includes(text)) {
+            if (!options.silent) {
+              lastCommittedRef.current = 0;
+              onChange(0, options);
+            }
+            return;
+          }
+          const next = safeNumber(raw);
+          if (options.silent && next === safeNumber(lastCommittedRef.current)) return;
+          lastCommittedRef.current = next;
+          onChange(next, options);
+        };
         return (
           <label className="block">
             <div className="text-xs subtext mb-1">{label}</div>
@@ -2828,8 +2878,15 @@
               type="number"
               className="form-control"
               value={local}
-              onChange={(e) => setLocal(e.target.value)}
-              onBlur={() => onChange(safeNumber(local))}
+              onChange={(e) => {
+                const next = e.target.value;
+                setLocal(next);
+                commit(next, { silent: true });
+              }}
+              onBlur={() => commit(local, { silent: false })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
             />
           </label>
         );
