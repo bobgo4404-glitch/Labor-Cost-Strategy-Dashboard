@@ -753,7 +753,9 @@
       const DEFAULT_SCENARIO = {
         headcountChange: 0,
         promotionRaiseRate: 3,
-        minWageRaiseRate: 2,
+        minWageRaiseRate: 0,
+        currentMinimumWage: 10030,
+        targetMinimumWage: 10320,
         bonusAdjustRate: 0,
         incentivePayoutRate: 100,
         fourHalfDayAdjustRate: -10,
@@ -1068,6 +1070,95 @@
           safeNumber(emp.performancePay);
         const total = wage + safeNumber(emp.insuranceEmployer) + safeNumber(emp.retirementProvision);
         return Math.max(total, 0);
+      };
+
+      const getScenarioTargetMinimumWage = (scenarioInput) => {
+        const target = safeNumber(scenarioInput.targetMinimumWage);
+        if (target > 0) return target;
+        const current = safeNumber(scenarioInput.currentMinimumWage);
+        const legacyRate = safeNumber(scenarioInput.minWageRaiseRate);
+        return current > 0 && legacyRate ? Math.round(current * (1 + legacyRate / 100)) : 0;
+      };
+
+      const getScenarioCurrentMinimumWage = (scenarioInput) => {
+        const current = safeNumber(scenarioInput.currentMinimumWage);
+        if (current > 0) return current;
+        const target = safeNumber(scenarioInput.targetMinimumWage);
+        const legacyRate = safeNumber(scenarioInput.minWageRaiseRate);
+        return target > 0 && legacyRate ? Math.round(target / (1 + legacyRate / 100)) : 0;
+      };
+
+      const getScenarioMinimumWageRaiseRate = (scenarioInput) => {
+        const current = getScenarioCurrentMinimumWage(scenarioInput);
+        const target = getScenarioTargetMinimumWage(scenarioInput);
+        if (current > 0 && target > 0) return ((target - current) / current) * 100;
+        return safeNumber(scenarioInput.minWageRaiseRate);
+      };
+
+      const calcEmployeeMinimumWageImpact = (emp, targetMinimumWage, salaryFactor = 1) => {
+        const targetHourly = safeNumber(targetMinimumWage);
+        if (targetHourly <= 0) {
+          return { annualAdjustment: 0, affected: false, currentHourly: 0, adjustedHourly: 0, monthlyHours: 0 };
+        }
+        const wageType = normalizeWageType(emp.wageType, emp.hourlyWage);
+        const monthlyHours = safeNumber(emp.monthlyHours) || 209;
+        const currentMonthlyBase =
+          wageType === "시급제"
+            ? safeNumber(emp.hourlyWage) * monthlyHours
+            : safeNumber(emp.baseSalary);
+        const adjustedMonthlyBase = currentMonthlyBase * Math.max(salaryFactor, 0);
+        const requiredMonthlyBase = targetHourly * monthlyHours;
+        const monthlyGap = Math.max(requiredMonthlyBase - adjustedMonthlyBase, 0);
+        return {
+          annualAdjustment: monthlyGap * 12,
+          affected: monthlyGap > 0,
+          currentHourly: monthlyHours ? currentMonthlyBase / monthlyHours : 0,
+          adjustedHourly: monthlyHours ? adjustedMonthlyBase / monthlyHours : 0,
+          monthlyHours,
+        };
+      };
+
+      const calculateScenarioCost = ({ employees, scenario, avgCostPerPerson }) => {
+        const pct = (x) => safeNumber(x) / 100;
+        const salaryFactor = Math.max(
+          0,
+          1 + pct(scenario.avgRaiseRate) + pct(scenario.promotionRaiseRate) + pct(scenario.fourHalfDayAdjustRate)
+        );
+        const bonusFactor = 1 + pct(scenario.bonusAdjustRate);
+        const incentiveFactor = pct(scenario.incentivePayoutRate);
+        const targetMinimumWage = getScenarioTargetMinimumWage(scenario);
+        const currentMinimumWage = getScenarioCurrentMinimumWage(scenario);
+        const minimumWageRaiseRate = getScenarioMinimumWageRaiseRate(scenario);
+        let minimumWageAdjustment = 0;
+        let minimumWageAffectedCount = 0;
+
+        const simulatedExistingCost = employees.reduce((sum, emp) => {
+          const base = calcEmployeeAnnualBase(emp);
+          const allowance = safeNumber(emp.fixedAllowance);
+          const minimumWageImpact = calcEmployeeMinimumWageImpact(emp, targetMinimumWage, salaryFactor);
+          if (minimumWageImpact.affected) minimumWageAffectedCount += 1;
+          minimumWageAdjustment += minimumWageImpact.annualAdjustment;
+
+          const currentPayrollBase = Math.max(base + allowance, 0);
+          const simulatedPayrollBase = currentPayrollBase * salaryFactor + minimumWageImpact.annualAdjustment;
+          const payrollCostFactor =
+            currentPayrollBase > 0 ? Math.max(simulatedPayrollBase / currentPayrollBase, 0.1) : Math.max(salaryFactor, 0.1);
+          const bonus = safeNumber(emp.bonus) * bonusFactor;
+          const incentive = safeNumber(emp.performancePay) * incentiveFactor;
+          const insurance = safeNumber(emp.insuranceEmployer) * payrollCostFactor;
+          const retirement = safeNumber(emp.retirementProvision) * payrollCostFactor;
+          return sum + simulatedPayrollBase + bonus + incentive + insurance + retirement;
+        }, 0);
+
+        const additionalHeadcountCost = avgCostPerPerson * safeNumber(scenario.headcountChange);
+        return {
+          total: simulatedExistingCost + additionalHeadcountCost,
+          minimumWageAdjustment,
+          minimumWageAffectedCount,
+          currentMinimumWage,
+          targetMinimumWage,
+          minimumWageRaiseRate,
+        };
       };
 
       class ErrorBoundary extends React.Component {
@@ -1390,34 +1481,14 @@
         const laborRatio = settings.annualRevenue ? (totalLaborCost / settings.annualRevenue) * 100 : 0;
 
         const scenarioResult = useMemo(() => {
-          const pct = (x) => safeNumber(x) / 100;
-          const salaryFactor =
-            1 +
-            pct(scenario.avgRaiseRate) +
-            pct(scenario.minWageRaiseRate) +
-            pct(scenario.promotionRaiseRate) +
-            pct(scenario.fourHalfDayAdjustRate);
-          const bonusFactor = 1 + pct(scenario.bonusAdjustRate);
-          const incentiveFactor = pct(scenario.incentivePayoutRate);
-
-          const simulatedExistingCost = employees.reduce((sum, emp) => {
-            const base = calcEmployeeAnnualBase(emp);
-            const allowance = safeNumber(emp.fixedAllowance);
-            const bonus = safeNumber(emp.bonus) * bonusFactor;
-            const incentive = safeNumber(emp.performancePay) * incentiveFactor;
-            const insurance = safeNumber(emp.insuranceEmployer) * Math.max(salaryFactor, 0.1);
-            const retirement = safeNumber(emp.retirementProvision) * Math.max(salaryFactor, 0.1);
-            return sum + (base + allowance) * salaryFactor + bonus + incentive + insurance + retirement;
-          }, 0);
-
-          const additionalHeadcountCost = avgCostPerPerson * safeNumber(scenario.headcountChange);
-          const total = simulatedExistingCost + additionalHeadcountCost;
+          const simulation = calculateScenarioCost({ employees, scenario, avgCostPerPerson });
+          const total = simulation.total;
           const delta = total - totalLaborCost;
           const deltaRate = totalLaborCost ? (delta / totalLaborCost) * 100 : 0;
           const ebitdaImpact = -delta;
           const ratio = settings.annualRevenue ? (total / settings.annualRevenue) * 100 : 0;
 
-          return { total, delta, deltaRate, ebitdaImpact, ratio };
+          return { ...simulation, total, delta, deltaRate, ebitdaImpact, ratio };
         }, [employees, scenario, settings.annualRevenue, avgCostPerPerson, totalLaborCost]);
 
         const forecastRows = useMemo(() => {
@@ -1574,39 +1645,26 @@
           const contributions = [
             { label: "평균 임금 인상", value: safeNumber(scenario.avgRaiseRate) },
             { label: "직급 승진 인상", value: safeNumber(scenario.promotionRaiseRate) },
-            { label: "최저임금 반영", value: safeNumber(scenario.minWageRaiseRate) },
+            {
+              label: "최저임금 직원별 보정",
+              value: totalLaborCost ? (safeNumber(scenarioResult.minimumWageAdjustment) / totalLaborCost) * 100 : 0,
+            },
             { label: "상여금 조정", value: safeNumber(scenario.bonusAdjustRate) },
             { label: "성과급 지급률", value: safeNumber(scenario.incentivePayoutRate) - 100 },
             { label: "4.5일제 임금 조정", value: safeNumber(scenario.fourHalfDayAdjustRate) },
           ].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
           const top = contributions.slice(0, 2);
           return `${top[0]?.label || "요인 없음"}과 ${top[1]?.label || "요인 없음"}이 인건비 변화의 핵심 동인입니다.`;
-        }, [scenario]);
+        }, [scenario, scenarioResult.minimumWageAdjustment, totalLaborCost]);
 
         const sensitivity = useMemo(() => {
           const baseRate = safeNumber(scenario.avgRaiseRate);
-          const clone = { ...scenario };
           const run = (rate) => {
-            clone.avgRaiseRate = rate;
-            const pct = (x) => safeNumber(x) / 100;
-            const salaryFactor =
-              1 +
-              pct(clone.avgRaiseRate) +
-              pct(clone.minWageRaiseRate) +
-              pct(clone.promotionRaiseRate) +
-              pct(clone.fourHalfDayAdjustRate);
-            const bonusFactor = 1 + pct(clone.bonusAdjustRate);
-            const incentiveFactor = pct(clone.incentivePayoutRate);
-            const simulatedExistingCost = employees.reduce((sum, emp) => {
-              const base = calcEmployeeAnnualBase(emp);
-              const allowance = safeNumber(emp.fixedAllowance);
-              const bonus = safeNumber(emp.bonus) * bonusFactor;
-              const incentive = safeNumber(emp.performancePay) * incentiveFactor;
-              const insurance = safeNumber(emp.insuranceEmployer) * Math.max(salaryFactor, 0.1);
-              const retirement = safeNumber(emp.retirementProvision) * Math.max(salaryFactor, 0.1);
-              return sum + (base + allowance) * salaryFactor + bonus + incentive + insurance + retirement;
-            }, 0);
-            return simulatedExistingCost + avgCostPerPerson * safeNumber(clone.headcountChange);
+            return calculateScenarioCost({
+              employees,
+              scenario: { ...scenario, avgRaiseRate: rate },
+              avgCostPerPerson,
+            }).total;
           };
           const minus1 = run(baseRate - 1);
           const plus1 = run(baseRate + 1);
@@ -2536,7 +2594,8 @@
                       <NumberInput label="인원 증감(명)" value={scenario.headcountChange} onChange={(v) => saveScenario({ ...scenario, headcountChange: v })} />
                       <NumberInput label="평균 임금 인상률(%)" value={scenario.avgRaiseRate} onChange={(v) => saveScenario({ ...scenario, avgRaiseRate: v })} />
                       <NumberInput label="직급 승진 인상률(%)" value={scenario.promotionRaiseRate} onChange={(v) => saveScenario({ ...scenario, promotionRaiseRate: v })} />
-                      <NumberInput label="최저임금 인상률(%)" value={scenario.minWageRaiseRate} onChange={(v) => saveScenario({ ...scenario, minWageRaiseRate: v })} />
+                      <NumberInput label="현행 최저시급(원)" value={scenario.currentMinimumWage} onChange={(v) => saveScenario({ ...scenario, currentMinimumWage: v })} />
+                      <NumberInput label="적용 최저시급(원)" value={scenario.targetMinimumWage} onChange={(v) => saveScenario({ ...scenario, targetMinimumWage: v })} />
                       <NumberInput label="상여금 조정률(%)" value={scenario.bonusAdjustRate} onChange={(v) => saveScenario({ ...scenario, bonusAdjustRate: v })} />
                       <NumberInput label="성과급 지급률(%)" value={scenario.incentivePayoutRate} onChange={(v) => saveScenario({ ...scenario, incentivePayoutRate: v })} />
                       <NumberInput label="4.5일제 임금 조정률(%)" value={scenario.fourHalfDayAdjustRate} onChange={(v) => saveScenario({ ...scenario, fourHalfDayAdjustRate: v })} />
@@ -2547,6 +2606,9 @@
                     <div className="score-row"><span>총인건비 변화액</span><b className="metric-number">{formatCurrency(scenarioResult.delta)}</b></div>
                     <div className="score-row"><span>증감률</span><b className="metric-number">{formatPercent(scenarioResult.deltaRate)}</b></div>
                     <div className="score-row"><span>인건비율</span><b className="metric-number">{formatPercent(scenarioResult.ratio)}</b></div>
+                    <div className="score-row"><span>최저임금 영향 인원</span><b className="metric-number">{formatNumber(scenarioResult.minimumWageAffectedCount)}명</b></div>
+                    <div className="score-row"><span>최저임금 보정액</span><b className="metric-number">{formatCurrency(scenarioResult.minimumWageAdjustment)}</b></div>
+                    <div className="score-row"><span>최저시급 적용</span><b className="metric-number">{formatCurrency(scenarioResult.currentMinimumWage)} → {formatCurrency(scenarioResult.targetMinimumWage)} ({formatPercent(scenarioResult.minimumWageRaiseRate)})</b></div>
                     <div className="score-row"><span>-1% 임금 인상 영향</span><b className="metric-number">{formatCurrency(sensitivity.minus1Impact)}</b></div>
                     <div className="score-row"><span>+1% 임금 인상 영향</span><b className="metric-number">{formatCurrency(sensitivity.plus1Impact)}</b></div>
                   </div>
