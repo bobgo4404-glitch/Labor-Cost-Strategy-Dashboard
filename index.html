@@ -18,24 +18,28 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
       :root {
-        --bg: #eef3ff;
-        --bg2: #f7fafc;
-        --panel: rgba(255, 255, 255, 0.8);
-        --panel-muted: rgba(241, 246, 255, 0.85);
-        --text: #0f172a;
-        --subtext: #4b5563;
-        --line: rgba(102, 118, 148, 0.25);
+        --bg: #f4f6f9;
+        --bg2: #eef2f7;
+        --panel: #ffffff;
+        --panel-muted: #f8fafc;
+        --text: #101828;
+        --subtext: #667085;
+        --line: #d9e0ea;
         --primary: #0b7a75;
-        --primary-2: #0ea5e9;
+        --primary-2: #2563eb;
         --danger: #c62828;
         --warn: #ca8a04;
-        --ring: rgba(14, 165, 233, 0.24);
+        --ring: rgba(37, 99, 235, 0.16);
+        --sidebar: #ffffff;
+        --sidebar-muted: #f5f7fb;
+        --nav-active: #e8f4f2;
+        --nav-hover: #f1f5f9;
       }
       body.theme-dark {
-        --bg: #071022;
-        --bg2: #0b172f;
-        --panel: rgba(15, 27, 48, 0.72);
-        --panel-muted: rgba(20, 36, 63, 0.78);
+        --bg: #0b1220;
+        --bg2: #111827;
+        --panel: #101b2d;
+        --panel-muted: #142238;
         --text: #e9efff;
         --subtext: #9eb0cb;
         --line: rgba(84, 112, 154, 0.32);
@@ -44,6 +48,10 @@
         --danger: #f87171;
         --warn: #fbbf24;
         --ring: rgba(45, 212, 191, 0.24);
+        --sidebar: #0f172a;
+        --sidebar-muted: #111f35;
+        --nav-active: rgba(45, 212, 191, 0.14);
+        --nav-hover: rgba(148, 163, 184, 0.12);
       }
       * {
         box-sizing: border-box;
@@ -51,37 +59,319 @@
       body {
         margin: 0;
         font-family: "Noto Sans KR", sans-serif;
-        background:
-          radial-gradient(1200px 620px at 0% -8%, #d7e4ff 0%, transparent 58%),
-          radial-gradient(1200px 620px at 100% -15%, #ccfbf1 0%, transparent 56%),
-          linear-gradient(180deg, var(--bg), var(--bg2));
+        background: var(--bg);
         color: var(--text);
       }
       body.theme-dark {
-        background:
-          radial-gradient(1200px 620px at 0% -8%, #12305a 0%, transparent 58%),
-          radial-gradient(1200px 620px at 100% -15%, #0a3a34 0%, transparent 56%),
-          linear-gradient(180deg, var(--bg), var(--bg2));
+        background: var(--bg);
       }
-      .app-shell {
-        position: relative;
-        z-index: 1;
+      .app-layout {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 268px minmax(0, 1fr);
+      }
+      .app-main {
+        min-width: 0;
+        padding: 24px 28px 42px;
+      }
+      .sidebar {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        padding: 18px 14px;
+        background: var(--sidebar);
+        border-right: 1px solid var(--line);
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
+      }
+      .brand-title {
+        font-size: 0.98rem;
+        font-weight: 800;
+        line-height: 1.2;
+      }
+      .brand-subtitle {
+        font-size: 0.72rem;
+        color: var(--subtext);
+        margin-top: 2px;
+      }
+      .nav-list {
+        display: grid;
+        gap: 4px;
+      }
+      .nav-link {
+        width: 100%;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--subtext);
+        font-size: 0.9rem;
+        font-weight: 700;
+        text-align: left;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+      }
+      .nav-link i {
+        width: 18px;
+        text-align: center;
+      }
+      .nav-link:hover {
+        background: var(--nav-hover);
+        color: var(--text);
+      }
+      .nav-link.active {
+        color: var(--primary);
+        background: var(--nav-active);
+        border-color: rgba(11, 122, 117, 0.18);
+      }
+      .side-summary {
+        margin-top: auto;
+        background: var(--sidebar-muted);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .side-summary-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 0.78rem;
+        color: var(--subtext);
+      }
+      .side-summary-row + .side-summary-row {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
+      }
+      .side-summary-row b {
+        color: var(--text);
+      }
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 30px;
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel-muted);
+        color: var(--subtext);
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: #12b76a;
+        box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.12);
+      }
+      .header-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .section-anchor {
+        scroll-margin-top: 24px;
+      }
+      .view-shell {
+        display: grid;
+        gap: 16px;
+      }
+      .page-heading {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .page-kicker {
+        color: var(--primary);
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+      .page-title {
+        margin-top: 3px;
+        font-size: 1.55rem;
+        line-height: 1.25;
+        font-weight: 900;
+      }
+      .page-copy {
+        margin-top: 6px;
+        color: var(--subtext);
+        font-size: 0.9rem;
+      }
+      .content-grid {
+        display: grid;
+        gap: 16px;
+      }
+      .content-grid.two {
+        grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.8fr);
+      }
+      .content-grid.equal {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .summary-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .summary-item {
+        min-height: 84px;
+        padding: 14px;
+        border-radius: 8px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+      }
+      .summary-label {
+        color: var(--subtext);
+        font-size: 0.76rem;
+        font-weight: 700;
+      }
+      .summary-value {
+        margin-top: 8px;
+        font-size: 1.28rem;
+        font-weight: 900;
+      }
+      .summary-note {
+        margin-top: 5px;
+        color: var(--subtext);
+        font-size: 0.74rem;
+      }
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .table-toolbar {
+        display: grid;
+        grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(140px, 0.8fr));
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .toolbar-input {
+        width: 100%;
+        min-height: 40px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--panel-muted);
+        color: var(--text);
+        padding: 8px 10px;
+        outline: 0;
+      }
+      .toolbar-input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 4px var(--ring);
+      }
+      .table-footer {
+        margin-top: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .pager {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .score-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 0.9rem;
+      }
+      .score-row:last-child {
+        border-bottom: 0;
+      }
+      .risk-list {
+        display: grid;
+        gap: 10px;
+      }
+      .risk-item {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: 10px;
+        padding: 11px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .risk-item:last-child {
+        border-bottom: 0;
+      }
+      .risk-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--panel-muted);
+      }
+      .policy-list {
+        display: grid;
+        gap: 10px;
+      }
+      .policy-row {
+        display: grid;
+        grid-template-columns: 140px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 11px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 0.9rem;
+      }
+      .policy-row:last-child {
+        border-bottom: 0;
+      }
+      .badge-soft {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        border-radius: 999px;
+        padding: 4px 9px;
+        background: var(--panel-muted);
+        color: var(--subtext);
+        border: 1px solid var(--line);
+        font-size: 0.75rem;
+        font-weight: 800;
+      }
+      .empty-state {
+        padding: 36px 12px;
+        text-align: center;
+        color: var(--subtext);
       }
       .panel {
         background: var(--panel);
         border: 1px solid var(--line);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        box-shadow:
-          0 10px 32px rgba(15, 23, 42, 0.06),
-          inset 0 1px 0 rgba(255, 255, 255, 0.45);
-        transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+        transition: box-shadow 0.18s ease, border-color 0.18s ease;
       }
       .panel:hover {
-        transform: translateY(-1px);
-        box-shadow:
-          0 14px 38px rgba(15, 23, 42, 0.1),
-          inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        border-color: rgba(37, 99, 235, 0.22);
+        box-shadow: 0 4px 14px rgba(16, 24, 40, 0.07);
       }
       .panel-muted {
         background: var(--panel-muted);
@@ -136,18 +426,6 @@
         height: 3px;
         background: linear-gradient(90deg, var(--primary), var(--primary-2));
       }
-      .title-gradient {
-        background: linear-gradient(135deg, #0f766e, #0369a1);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        color: transparent;
-      }
-      body.theme-dark .title-gradient {
-        background: linear-gradient(135deg, #2dd4bf, #38bdf8);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-      }
       .form-control {
         width: 100%;
         padding: 10px 12px;
@@ -168,7 +446,7 @@
       .metric-number {
         font-variant-numeric: tabular-nums;
         font-feature-settings: "tnum" 1, "lnum" 1;
-        letter-spacing: -0.01em;
+        letter-spacing: 0;
       }
       .metric-lg {
         font-size: clamp(1.2rem, 1.2vw + 0.9rem, 1.85rem);
@@ -181,7 +459,7 @@
       .section-title {
         font-size: 1.06rem;
         font-weight: 800;
-        letter-spacing: -0.01em;
+        letter-spacing: 0;
       }
       .tone-core {
         color: #0f766e;
@@ -234,8 +512,12 @@
       }
       .app-header {
         position: sticky;
-        top: 12px;
+        top: 16px;
         z-index: 20;
+      }
+      .rounded-2xl,
+      .rounded-xl {
+        border-radius: 8px !important;
       }
       .fade-in {
         animation: fadeUp 0.5s ease both;
@@ -280,6 +562,55 @@
         .print-break {
           break-inside: avoid;
           page-break-inside: avoid;
+        }
+      }
+      @media (max-width: 1023px) {
+        .app-layout {
+          display: block;
+        }
+        .sidebar {
+          height: auto;
+          position: sticky;
+          top: 0;
+          padding: 12px;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .sidebar-brand {
+          display: none;
+        }
+        .nav-list {
+          display: flex;
+          overflow-x: auto;
+          gap: 6px;
+          padding-bottom: 2px;
+        }
+        .nav-link {
+          flex: 0 0 auto;
+          white-space: nowrap;
+        }
+        .side-summary {
+          display: none;
+        }
+        .app-main {
+          padding: 16px;
+        }
+        .app-header {
+          top: 68px;
+        }
+        .content-grid.two,
+        .content-grid.equal,
+        .summary-strip,
+        .table-toolbar {
+          grid-template-columns: 1fr;
+        }
+        .page-heading,
+        .table-footer {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .policy-row {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -408,6 +739,72 @@
         overtimeHours: 4000,
       };
 
+      const NAV_ITEMS = [
+        { id: "overview", label: "경영 Overview", icon: "fa-solid fa-gauge-high" },
+        { id: "people", label: "인력/인건비", icon: "fa-solid fa-users-gear" },
+        { id: "standards", label: "기준값/정책", icon: "fa-solid fa-sliders" },
+        { id: "scenario", label: "시나리오", icon: "fa-solid fa-diagram-project" },
+        { id: "forecast", label: "3년 Forecast", icon: "fa-solid fa-chart-line" },
+        { id: "productivity", label: "생산성", icon: "fa-solid fa-industry" },
+        { id: "analytics", label: "리스크 분석", icon: "fa-solid fa-triangle-exclamation" },
+        { id: "charts", label: "차트 보드", icon: "fa-solid fa-chart-pie" },
+        { id: "report", label: "보고서", icon: "fa-solid fa-file-lines" },
+        { id: "logs", label: "변경 이력", icon: "fa-solid fa-clock-rotate-left" },
+      ];
+
+      const VIEW_META = {
+        overview: {
+          kicker: "Executive cockpit",
+          title: "경영진 의사결정 Overview",
+          copy: "총액, 인건비율, 리스크, 핵심 동인을 한 화면에서 판단합니다.",
+        },
+        people: {
+          kicker: "Workforce master",
+          title: "인력/인건비 마스터 운영",
+          copy: "300인 이상 조직을 전제로 검색, 필터, 페이지 단위 관리를 제공합니다.",
+        },
+        standards: {
+          kicker: "Policy baseline",
+          title: "기준값/정책 관리",
+          copy: "매출, 경고 기준, 운영 임계치를 관리하고 정책 리스크를 점검합니다.",
+        },
+        scenario: {
+          kicker: "Scenario lab",
+          title: "인건비 시나리오 설계",
+          copy: "인상률, 승진, 채용, 성과급 변화가 손익에 미치는 영향을 즉시 비교합니다.",
+        },
+        forecast: {
+          kicker: "3-year planning",
+          title: "3년 Forecast",
+          copy: "채용/퇴직 계획과 매출 성장률을 반영해 중기 인건비율을 예측합니다.",
+        },
+        productivity: {
+          kicker: "Capacity planning",
+          title: "생산성 기반 적정 인원",
+          copy: "생산량, 1인당 생산성, 잔업시간 기준으로 과잉/부족 인원을 계산합니다.",
+        },
+        analytics: {
+          kicker: "Risk analytics",
+          title: "리스크 분석",
+          copy: "고직급 집중도, 부서별 비용, 민감도와 자동 요약으로 관리 우선순위를 정합니다.",
+        },
+        charts: {
+          kicker: "Visual board",
+          title: "차트 보드",
+          copy: "구성, 직급, 시나리오, Forecast를 시각적으로 검토합니다.",
+        },
+        report: {
+          kicker: "Board report",
+          title: "보고서 생성",
+          copy: "현재 데이터를 경영진 보고서 형태로 미리 보고 출력합니다.",
+        },
+        logs: {
+          kicker: "Governance",
+          title: "변경 이력",
+          copy: "저장된 변경 내역과 작업 흔적을 운영 통제 관점에서 확인합니다.",
+        },
+      };
+
       const formatNumber = (v) => Number(v || 0).toLocaleString("ko-KR");
       const roundToManwon = (v) => Math.round((Number(v) || 0) / 10000) * 10000;
       const formatCurrency = (v) =>
@@ -469,6 +866,114 @@
 
         const fallback = parseHrMoney(row.baseSalary);
         return fallback >= 10000000 ? Math.round(fallback / 12) : Math.round(fallback);
+      };
+
+      const EMPLOYEE_TEMPLATE_HEADERS = [
+        "이름",
+        "부서",
+        "직급",
+        "고용형태",
+        "월기본급",
+        "연간고정수당",
+        "연간상여금",
+        "연간성과급",
+        "연간4대보험사용자부담액",
+        "연간퇴직충당금",
+      ];
+      const EMPLOYEE_TEMPLATE_SAMPLE = [
+        "홍길동",
+        "",
+        "",
+        "",
+        "3500000",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ];
+      const FIELD_ALIASES = {
+        name: ["이름", "성명", "name"],
+        department: ["부서", "조직", "팀", "department", "dept"],
+        grade: ["직급", "직위", "grade", "position", "rank"],
+        employmentType: ["고용형태", "계약유형", "employmenttype", "employment"],
+        baseSalary: ["월기본급", "월 기본급", "기본급", "월급", "monthlybasesalary", "basesalary", "monthlysalary"],
+        fixedAllowance: ["연간고정수당", "고정수당", "fixedallowance", "allowance"],
+        bonus: ["연간상여금", "상여금", "bonus"],
+        performancePay: ["연간성과급", "성과급", "performancepay", "incentive"],
+        insuranceEmployer: ["연간4대보험사용자부담액", "4대보험사용자부담액", "보험사용자부담액", "insuranceemployer"],
+        retirementProvision: ["연간퇴직충당금", "퇴직충당금", "retirementprovision", "retirement"],
+      };
+      const normalizeCsvHeader = (v) => String(v || "").replace(/^\uFEFF/, "").replace(/[\s_()-]/g, "").toLowerCase();
+      const escapeCsvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const parseCsvRows = (text) => {
+        const rows = [];
+        let row = [];
+        let cell = "";
+        let inQuotes = false;
+        const source = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        for (let i = 0; i < source.length; i++) {
+          const ch = source[i];
+          const next = source[i + 1];
+          if (ch === '"' && inQuotes && next === '"') {
+            cell += '"';
+            i += 1;
+          } else if (ch === '"') {
+            inQuotes = !inQuotes;
+          } else if (ch === "," && !inQuotes) {
+            row.push(cell);
+            cell = "";
+          } else if (ch === "\n" && !inQuotes) {
+            row.push(cell);
+            if (row.some((x) => String(x).trim() !== "")) rows.push(row);
+            row = [];
+            cell = "";
+          } else {
+            cell += ch;
+          }
+        }
+        row.push(cell);
+        if (row.some((x) => String(x).trim() !== "")) rows.push(row);
+        return rows;
+      };
+      const parseEmployeeCsv = (text) => {
+        const rows = parseCsvRows(text);
+        if (rows.length < 2) return { valid: [], invalid: rows.length ? rows.length - 1 : 0 };
+        const headers = rows[0].map(normalizeCsvHeader);
+        const fieldByIndex = headers.map((header) => {
+          const found = Object.entries(FIELD_ALIASES).find(([, aliases]) =>
+            aliases.map(normalizeCsvHeader).includes(header)
+          );
+          return found?.[0] || "";
+        });
+        const valid = [];
+        let invalid = 0;
+        rows.slice(1).forEach((cells) => {
+          const raw = {};
+          cells.forEach((cell, idx) => {
+            const field = fieldByIndex[idx];
+            if (field) raw[field] = String(cell || "").trim();
+          });
+          if (!raw.name && !raw.department && !raw.grade && !raw.baseSalary) return;
+          const payload = {
+            name: raw.name || "",
+            department: raw.department || "미지정",
+            grade: raw.grade || "미지정",
+            employmentType: raw.employmentType || "정규직",
+            baseSalary: parseHrMoney(raw.baseSalary),
+            fixedAllowance: parseHrMoney(raw.fixedAllowance),
+            bonus: parseHrMoney(raw.bonus),
+            performancePay: parseHrMoney(raw.performancePay),
+            insuranceEmployer: parseHrMoney(raw.insuranceEmployer),
+            retirementProvision: parseHrMoney(raw.retirementProvision),
+          };
+          if (!payload.name || payload.baseSalary <= 0) {
+            invalid += 1;
+            return;
+          }
+          valid.push(payload);
+        });
+        return { valid, invalid };
       };
 
       const calcEmployeeTotal = (emp) => {
@@ -595,12 +1100,19 @@
 
         const [employeeModal, setEmployeeModal] = useState({ open: false, mode: "create", target: null });
         const [deleteTarget, setDeleteTarget] = useState(null);
+        const [activeSection, setActiveSection] = useState("overview");
+        const [peopleSearch, setPeopleSearch] = useState("");
+        const [peopleDept, setPeopleDept] = useState("all");
+        const [peopleGrade, setPeopleGrade] = useState("all");
+        const [peopleType, setPeopleType] = useState("all");
+        const [peoplePage, setPeoplePage] = useState(1);
         const defaultsEnsuredRef = useRef(false);
 
         const compositionChartRef = useRef(null);
         const gradeChartRef = useRef(null);
         const compareChartRef = useRef(null);
         const forecastChartRef = useRef(null);
+        const employeeUploadInputRef = useRef(null);
         const compositionChart = useRef(null);
         const gradeChart = useRef(null);
         const compareChart = useRef(null);
@@ -892,6 +1404,45 @@
             .sort((a, b) => b.cost - a.cost);
         }, [employees]);
 
+        const departmentOptions = useMemo(
+          () => [...new Set(employees.map((e) => e.department || "미지정"))].sort((a, b) => a.localeCompare(b)),
+          [employees]
+        );
+        const gradeOptions = useMemo(
+          () => [...new Set(employees.map((e) => e.grade || "미지정"))].sort((a, b) => a.localeCompare(b)),
+          [employees]
+        );
+        const typeOptions = useMemo(
+          () => [...new Set(employees.map((e) => e.employmentType || "미지정"))].sort((a, b) => a.localeCompare(b)),
+          [employees]
+        );
+        const filteredEmployees = useMemo(() => {
+          const q = peopleSearch.trim().toLowerCase();
+          return employees.filter((e) => {
+            const matchesText =
+              !q ||
+              [e.name, e.department, e.grade, e.employmentType]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(q);
+            const matchesDept = peopleDept === "all" || (e.department || "미지정") === peopleDept;
+            const matchesGrade = peopleGrade === "all" || (e.grade || "미지정") === peopleGrade;
+            const matchesType = peopleType === "all" || (e.employmentType || "미지정") === peopleType;
+            return matchesText && matchesDept && matchesGrade && matchesType;
+          });
+        }, [employees, peopleSearch, peopleDept, peopleGrade, peopleType]);
+        const peoplePageSize = 20;
+        const peoplePageCount = Math.max(Math.ceil(filteredEmployees.length / peoplePageSize), 1);
+        const pagedEmployees = filteredEmployees.slice((peoplePage - 1) * peoplePageSize, peoplePage * peoplePageSize);
+
+        useEffect(() => {
+          setPeoplePage(1);
+        }, [peopleSearch, peopleDept, peopleGrade, peopleType]);
+        useEffect(() => {
+          setPeoplePage((page) => Math.min(Math.max(page, 1), peoplePageCount));
+        }, [peoplePageCount]);
+
         const autoCauseSummary = useMemo(() => {
           const contributions = [
             { label: "평균 임금 인상", value: safeNumber(scenario.avgRaiseRate) },
@@ -955,7 +1506,7 @@
           }
           const hiringPlan =
             safeNumber(forecastInput.hireY1) + safeNumber(forecastInput.hireY2) + safeNumber(forecastInput.hireY3);
-          if (hiringPlan > totalPeople * 0.2) {
+          if (totalPeople > 0 && hiringPlan > totalPeople * 0.2) {
             alerts.push({
               level: "warn",
               text: `3개년 채용계획(${hiringPlan}명)이 현재 인원의 20%를 초과합니다.`,
@@ -1131,7 +1682,7 @@
               },
             },
           });
-        }, [employees, chartPalette, theme]);
+        }, [employees, chartPalette, theme, activeSection]);
 
         useEffect(() => {
           if (!window.Chart || !gradeChartRef.current) return;
@@ -1178,7 +1729,7 @@
               },
             },
           });
-        }, [gradeCostConcentration, chartPalette, theme]);
+        }, [gradeCostConcentration, chartPalette, theme, activeSection]);
 
         useEffect(() => {
           if (!window.Chart || !compareChartRef.current) return;
@@ -1234,7 +1785,7 @@
               },
             },
           });
-        }, [totalLaborCost, scenarioResult.total, chartPalette, theme]);
+        }, [totalLaborCost, scenarioResult.total, chartPalette, theme, activeSection]);
 
         useEffect(() => {
           if (!window.Chart || !forecastChartRef.current) return;
@@ -1316,7 +1867,7 @@
               },
             },
           });
-        }, [forecastRows, chartPalette, theme]);
+        }, [forecastRows, chartPalette, theme, activeSection]);
 
         const saveDoc = async (id, data, successMessage) => {
           try {
@@ -1358,6 +1909,70 @@
           setEmployeeModal({ open: false, mode: "create", target: null });
         };
 
+        const downloadEmployeeTemplate = () => {
+          const rows = [EMPLOYEE_TEMPLATE_HEADERS, EMPLOYEE_TEMPLATE_SAMPLE];
+          const csv = `\uFEFF${rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n")}`;
+          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "인건비_직원업로드_양식.csv";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        };
+
+        const uploadEmployeeTemplate = async (event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          try {
+            const buffer = await file.arrayBuffer();
+            let text = new TextDecoder("utf-8").decode(buffer);
+            if (text.includes("�")) {
+              try {
+                text = new TextDecoder("euc-kr").decode(buffer);
+              } catch (decodeError) {
+                console.warn("CSV 인코딩 보정 실패:", decodeError);
+              }
+            }
+            const { valid, invalid } = parseEmployeeCsv(text);
+            if (!valid.length) {
+              setToast({ type: "error", message: "업로드 가능한 직원 데이터가 없습니다. 이름과 월기본급은 필수입니다." });
+              return;
+            }
+            const { fns, db } = services;
+            for (let i = 0; i < valid.length; i += 50) {
+              const chunk = valid.slice(i, i + 50);
+              await Promise.all(
+                chunk.map((payload) =>
+                  fns.setDoc(
+                    fns.doc(db, SHARED_COLLECTION, `emp_${crypto.randomUUID()}`),
+                    {
+                      type: "employee",
+                      source: "csv_upload",
+                      uploadFileName: file.name,
+                      ...payload,
+                      updatedAt: fns.serverTimestamp(),
+                    },
+                    { merge: true }
+                  )
+                )
+              );
+            }
+            await addLog("employee_bulk_upload", `${valid.length}명 업로드${invalid ? ` / ${invalid}행 제외` : ""}`);
+            setToast({
+              type: "success",
+              message: `${valid.length}명 업로드 완료${invalid ? `, ${invalid}행 제외` : ""}`,
+            });
+          } catch (error) {
+            console.error(error);
+            setToast({ type: "error", message: "업로드 실패: 양식 또는 네트워크 상태를 확인하세요." });
+          } finally {
+            event.target.value = "";
+          }
+        };
+
         const deleteEmployee = async () => {
           if (!deleteTarget) return;
           try {
@@ -1397,12 +2012,14 @@
           await addLog("settings_update", "기준 매출/경고치 변경");
         };
 
+        const activeMeta = VIEW_META[activeSection] || VIEW_META.overview;
+
         if (!firebaseReady || loading) {
           return <Spinner label="Firebase 연결 및 데이터 동기화 중..." />;
         }
 
         return (
-          <div className="app-shell max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6">
+          <div className="app-layout">
             <Toast toast={toast} onClose={() => setToast(null)} />
             <ConfirmModal
               open={!!deleteTarget}
@@ -1420,10 +2037,61 @@
               />
             )}
 
-            <header className="panel app-header rounded-2xl p-4 md:p-5 shadow-sm fade-in">
+            <aside className="sidebar no-print">
+              <div className="sidebar-brand flex items-center gap-3">
+                <div className="brand-mark">
+                  <i className="fa-solid fa-chart-simple"></i>
+                </div>
+                <div>
+                  <div className="brand-title">인건비 전략센터</div>
+                  <div className="brand-subtitle">Enterprise Workforce Cost</div>
+                </div>
+              </div>
+              <nav className="nav-list" aria-label="대시보드 메뉴">
+                {NAV_ITEMS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`nav-link text-left ${activeSection === item.id ? "active" : ""}`}
+                    onClick={() => setActiveSection(item.id)}
+                  >
+                    <i className={item.icon}></i>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+              <div className="side-summary">
+                <div className="side-summary-row">
+                  <span>총 인건비</span>
+                  <b className="metric-number">{formatCurrencyShort(totalLaborCost)}</b>
+                </div>
+                <div className="side-summary-row">
+                  <span>인건비율</span>
+                  <b className={laborRatio > safeNumber(settings.warningLaborRatio) ? "metric-number text-red-500" : "metric-number"}>
+                    {formatPercent(laborRatio)}
+                  </b>
+                </div>
+                <div className="side-summary-row">
+                  <span>예상 증감</span>
+                  <b className={scenarioResult.deltaRate > 0 ? "metric-number text-amber-500" : "metric-number"}>
+                    {formatPercent(scenarioResult.deltaRate)}
+                  </b>
+                </div>
+              </div>
+            </aside>
+
+            <main className="app-main space-y-5">
+            <header className="panel app-header p-4 md:p-5 fade-in">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight title-gradient">인건비 전략 대시보드</h1>
+                  <div className="text-xs font-bold primary mb-1">{activeMeta.kicker}</div>
+                  <h1 className="text-2xl md:text-3xl font-extrabold">{activeMeta.title}</h1>
+                  <p className="page-copy">{activeMeta.copy}</p>
+                  <div className="header-meta">
+                    <span className="status-pill"><span className="status-dot"></span>실시간 동기화</span>
+                    <span className="status-pill">총 {formatNumber(totalPeople)}명</span>
+                    <span className="status-pill">변경 {formatNumber(logs.length)}건</span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 no-print">
                   <button
@@ -1440,350 +2108,398 @@
               </div>
             </header>
 
-            <section className="grid md:grid-cols-5 gap-3 print-break">
-              <KPI icon="fa-solid fa-users" label="총 인원" value={`${formatNumber(totalPeople)}명`} />
-              <KPI icon="fa-solid fa-coins" label="총 인건비" value={formatCurrencyManwon(totalLaborCost)} />
-              <KPI
-                icon="fa-solid fa-chart-pie"
-                label="인건비율"
-                value={formatPercent(laborRatio)}
-                tone={laborRatio > safeNumber(settings.warningLaborRatio) ? "danger" : "normal"}
-              />
-              <KPI icon="fa-solid fa-user-tie" label="1인당 평균 인건비" value={formatCurrencyManwon(avgCostPerPerson)} />
-              <KPI
-                icon="fa-solid fa-arrow-trend-up"
-                label="올해 예상 증가율"
-                value={formatPercent(scenarioResult.deltaRate)}
-                tone={scenarioResult.deltaRate > 0 ? "warn" : "normal"}
-              />
-            </section>
+            {activeSection === "overview" && (
+              <div id="overview" className="view-shell fade-in">
+                <section className="summary-strip print-break">
+                  <KPI icon="fa-solid fa-users" label="총 인원" value={`${formatNumber(totalPeople)}명`} />
+                  <KPI icon="fa-solid fa-coins" label="총 인건비" value={formatCurrencyManwon(totalLaborCost)} />
+                  <KPI icon="fa-solid fa-chart-pie" label="인건비율" value={formatPercent(laborRatio)} tone={laborRatio > safeNumber(settings.warningLaborRatio) ? "danger" : "normal"} />
+                  <KPI icon="fa-solid fa-arrow-trend-up" label="올해 예상 증가율" value={formatPercent(scenarioResult.deltaRate)} tone={scenarioResult.deltaRate > 0 ? "warn" : "normal"} />
+                </section>
+                <section className="content-grid two">
+                  <div className="panel p-4 md:p-5">
+                    <div className="section-head">
+                      <h2 className="section-title tone-core">경영 판단 보드</h2>
+                      <span className="badge-soft">실시간 기준</span>
+                    </div>
+                    <div className="risk-list">
+                      {riskAlerts.map((r, idx) => (
+                        <div key={idx} className="risk-item">
+                          <span className={`risk-icon ${r.level === "danger" ? "text-red-500" : r.level === "warn" ? "text-amber-500" : "primary"}`}>
+                            <i className={r.level === "ok" ? "fa-solid fa-check" : "fa-solid fa-exclamation"}></i>
+                          </span>
+                          <div>
+                            <div className="font-bold">{r.level === "danger" ? "즉시 관리 필요" : r.level === "warn" ? "주의 관찰" : "정상 범위"}</div>
+                            <div className="subtext text-sm mt-1">{r.text}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="score-row mt-4">
+                      <span>핵심 변화 동인</span>
+                      <b>{autoCauseSummary}</b>
+                    </div>
+                  </div>
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-analytics mb-3">비용 집중도 Snapshot</h2>
+                    <div className="space-y-1">
+                      {departmentTop5.map((d, idx) => (
+                        <div key={d.department} className="score-row">
+                          <span>{idx + 1}. {d.department}</span>
+                          <b className="metric-number">{formatCurrencyShort(d.cost)}</b>
+                        </div>
+                      ))}
+                      {!departmentTop5.length && <div className="empty-state">부서별 데이터가 없습니다.</div>}
+                    </div>
+                  </div>
+                </section>
+                <section className="content-grid equal">
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-sim mb-3">시나리오 영향</h2>
+                    <div className="score-row"><span>시나리오 총 인건비</span><b className="metric-number">{formatCurrency(scenarioResult.total)}</b></div>
+                    <div className="score-row"><span>EBITDA 영향</span><b className="metric-number">{formatCurrency(scenarioResult.ebitdaImpact)}</b></div>
+                    <div className="score-row"><span>경고 기준 대비</span><b className="metric-number">{formatPercent(scenarioResult.ratio - safeNumber(settings.warningLaborRatio))}</b></div>
+                  </div>
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-productivity mb-3">인력 적정성</h2>
+                    <div className="score-row"><span>현재 인원</span><b className="metric-number">{formatNumber(totalPeople)}명</b></div>
+                    <div className="score-row"><span>생산성 기준 적정 인원</span><b className="metric-number">{formatNumber(productivityResult.required)}명</b></div>
+                    <div className="score-row"><span>과잉/부족 인원</span><b className="metric-number">{formatNumber(productivityResult.gap)}명</b></div>
+                  </div>
+                </section>
+              </div>
+            )}
 
-            <section className="grid lg:grid-cols-3 gap-4 print-break fade-in">
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm lg:col-span-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h2 className="section-title tone-core">직원 인건비 마스터 데이터</h2>
+            {activeSection === "people" && (
+              <div id="people" className="view-shell fade-in">
+                <section className="summary-strip">
+                  <div className="summary-item"><div className="summary-label">관리 대상</div><div className="summary-value metric-number">{formatNumber(totalPeople)}명</div><div className="summary-note">전체 직원 기준</div></div>
+                  <div className="summary-item"><div className="summary-label">필터 결과</div><div className="summary-value metric-number">{formatNumber(filteredEmployees.length)}명</div><div className="summary-note">현재 조회 조건</div></div>
+                  <div className="summary-item"><div className="summary-label">부서 수</div><div className="summary-value metric-number">{formatNumber(departmentOptions.length)}개</div><div className="summary-note">미지정 포함</div></div>
+                  <div className="summary-item"><div className="summary-label">평균 인건비</div><div className="summary-value metric-number">{formatCurrencyShort(avgCostPerPerson)}</div><div className="summary-note">1인당 연간</div></div>
+                </section>
+                <section className="panel p-4 md:p-5">
+                  <div className="section-head">
+                    <h2 className="section-title tone-core">직원 인건비 마스터</h2>
+                    <div className="flex flex-wrap gap-2 no-print">
+                      <button className="btn-secondary px-3 py-2 rounded-xl text-sm" onClick={downloadEmployeeTemplate}>
+                        <i className="fa-solid fa-download mr-2"></i>양식 다운로드
+                      </button>
+                      <button className="btn-secondary px-3 py-2 rounded-xl text-sm" onClick={() => employeeUploadInputRef.current?.click()}>
+                        <i className="fa-solid fa-upload mr-2"></i>양식 업로드
+                      </button>
+                      <button className="btn-primary px-4 py-2 rounded-xl text-sm" onClick={() => setEmployeeModal({ open: true, mode: "create", target: null })}>
+                        <i className="fa-solid fa-plus mr-2"></i>직원 추가
+                      </button>
+                      <input
+                        ref={employeeUploadInputRef}
+                        type="file"
+                        accept=".csv,text/csv"
+                        className="hidden"
+                        onChange={uploadEmployeeTemplate}
+                      />
+                    </div>
+                  </div>
+                  <div className="panel-muted rounded-lg p-3 text-sm mb-3 no-print">
+                    양식은 CSV 파일입니다. 필수 입력은 이름과 월기본급이며, 부서/직급/고용형태와 나머지 금액 항목은 비워두면 미지정 또는 0으로 처리됩니다.
+                    금액은 원 단위 또는 만원/억 표기를 지원합니다.
+                  </div>
+                  <div className="table-toolbar no-print">
+                    <input className="toolbar-input" value={peopleSearch} onChange={(e) => setPeopleSearch(e.target.value)} placeholder="이름, 부서, 직급 검색" />
+                    <select className="toolbar-input" value={peopleDept} onChange={(e) => setPeopleDept(e.target.value)}>
+                      <option value="all">전체 부서</option>
+                      {departmentOptions.map((x) => <option key={x} value={x}>{x}</option>)}
+                    </select>
+                    <select className="toolbar-input" value={peopleGrade} onChange={(e) => setPeopleGrade(e.target.value)}>
+                      <option value="all">전체 직급</option>
+                      {gradeOptions.map((x) => <option key={x} value={x}>{x}</option>)}
+                    </select>
+                    <select className="toolbar-input" value={peopleType} onChange={(e) => setPeopleType(e.target.value)}>
+                      <option value="all">전체 고용형태</option>
+                      {typeOptions.map((x) => <option key={x} value={x}>{x}</option>)}
+                    </select>
+                  </div>
+                  <div className="overflow-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left border-b border-slate-200">
+                          <th className="py-2">이름</th>
+                          <th>부서</th>
+                          <th>직급</th>
+                          <th>고용형태</th>
+                          <th className="text-right">월 기본급</th>
+                          <th className="text-right">총연봉</th>
+                          <th className="no-print">관리</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedEmployees.map((e) => (
+                          <tr key={e.id} className="border-b border-slate-100">
+                            <td className="py-2 font-semibold">{e.name || "-"}</td>
+                            <td>{e.department || "미지정"}</td>
+                            <td>{e.grade || "미지정"}</td>
+                            <td>{e.employmentType || "미지정"}</td>
+                            <td className="text-right metric-number">{formatCurrencyManwon(e.baseSalary)}</td>
+                            <td className="text-right font-semibold metric-number">{formatCurrencyManwon(calcEmployeeTotal(e))}</td>
+                            <td className="no-print">
+                              <div className="flex gap-1">
+                                <button className="btn-secondary px-2 py-1 rounded-lg" onClick={() => setEmployeeModal({ open: true, mode: "edit", target: e })}>수정</button>
+                                <button className="btn-danger px-2 py-1 rounded-lg" onClick={() => setDeleteTarget(e)}>삭제</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {!pagedEmployees.length && (
+                          <tr><td colSpan="7" className="empty-state">조회 조건에 맞는 직원이 없습니다.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="table-footer no-print">
+                    <span className="subtext text-sm">페이지당 20명, 총 {formatNumber(filteredEmployees.length)}명</span>
+                    <div className="pager">
+                      <button className="btn-secondary px-3 py-2 rounded-xl text-sm" onClick={() => setPeoplePage((p) => Math.max(p - 1, 1))} disabled={peoplePage <= 1}>이전</button>
+                      <span className="badge-soft">{peoplePage} / {peoplePageCount}</span>
+                      <button className="btn-secondary px-3 py-2 rounded-xl text-sm" onClick={() => setPeoplePage((p) => Math.min(p + 1, peoplePageCount))} disabled={peoplePage >= peoplePageCount}>다음</button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeSection === "standards" && (
+              <div id="standards" className="view-shell fade-in">
+                <section className="content-grid two">
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-core mb-3">운영 기준값</h2>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <NumberInput label="연간 매출(원)" value={settings.annualRevenue} onChange={(v) => saveSettings({ ...settings, annualRevenue: v })} />
+                      <NumberInput label="인건비율 경고 기준(%)" value={settings.warningLaborRatio} onChange={(v) => saveSettings({ ...settings, warningLaborRatio: v })} />
+                    </div>
+                    <div className="score-row mt-4"><span>현재 인건비율</span><b className="metric-number">{formatPercent(laborRatio)}</b></div>
+                    <div className="score-row"><span>시나리오 적용 후</span><b className="metric-number">{formatPercent(scenarioResult.ratio)}</b></div>
+                  </div>
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-analytics mb-3">정책 리스크 알림</h2>
+                    <div className="risk-list">
+                      {riskAlerts.map((r, idx) => (
+                        <div key={idx} className="risk-item">
+                          <span className={`risk-icon ${r.level === "danger" ? "text-red-500" : r.level === "warn" ? "text-amber-500" : "primary"}`}><i className="fa-solid fa-circle-exclamation"></i></span>
+                          <div className="text-sm">{r.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+                <section className="panel p-4 md:p-5">
+                  <h2 className="section-title tone-core mb-3">운영 정책 체크리스트</h2>
+                  <div className="policy-list">
+                    <div className="policy-row"><b>보상 정책</b><span>임금인상률, 승진 인상률, 성과급 지급률을 시나리오와 연동</span><span className="badge-soft">운영</span></div>
+                    <div className="policy-row"><b>인력 계획</b><span>채용/퇴직 계획이 인건비율 경고 기준을 넘는지 사전 점검</span><span className="badge-soft">예측</span></div>
+                    <div className="policy-row"><b>조직 구조</b><span>고직급 인건비 집중도와 부서별 비용 상위군을 정기 검토</span><span className="badge-soft">리스크</span></div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeSection === "scenario" && (
+              <div id="scenario" className="view-shell fade-in">
+                <section className="summary-strip">
+                  <div className="summary-item"><div className="summary-label">현재 총 인건비</div><div className="summary-value metric-number">{formatCurrencyShort(totalLaborCost)}</div></div>
+                  <div className="summary-item"><div className="summary-label">시나리오 총액</div><div className="summary-value metric-number">{formatCurrencyShort(scenarioResult.total)}</div></div>
+                  <div className="summary-item"><div className="summary-label">변화액</div><div className="summary-value metric-number">{formatCurrencyShort(scenarioResult.delta)}</div></div>
+                  <div className="summary-item"><div className="summary-label">EBITDA 영향</div><div className="summary-value metric-number">{formatCurrencyShort(scenarioResult.ebitdaImpact)}</div></div>
+                </section>
+                <section className="content-grid two">
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-sim mb-3">시나리오 입력</h2>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <NumberInput label="인원 증감(명)" value={scenario.headcountChange} onChange={(v) => saveScenario({ ...scenario, headcountChange: v })} />
+                      <NumberInput label="평균 임금 인상률(%)" value={scenario.avgRaiseRate} onChange={(v) => saveScenario({ ...scenario, avgRaiseRate: v })} />
+                      <NumberInput label="직급 승진 인상률(%)" value={scenario.promotionRaiseRate} onChange={(v) => saveScenario({ ...scenario, promotionRaiseRate: v })} />
+                      <NumberInput label="최저임금 인상률(%)" value={scenario.minWageRaiseRate} onChange={(v) => saveScenario({ ...scenario, minWageRaiseRate: v })} />
+                      <NumberInput label="상여금 조정률(%)" value={scenario.bonusAdjustRate} onChange={(v) => saveScenario({ ...scenario, bonusAdjustRate: v })} />
+                      <NumberInput label="성과급 지급률(%)" value={scenario.incentivePayoutRate} onChange={(v) => saveScenario({ ...scenario, incentivePayoutRate: v })} />
+                      <NumberInput label="4.5일제 임금 조정률(%)" value={scenario.fourHalfDayAdjustRate} onChange={(v) => saveScenario({ ...scenario, fourHalfDayAdjustRate: v })} />
+                    </div>
+                  </div>
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-analytics mb-3">손익 영향 분석</h2>
+                    <div className="score-row"><span>총인건비 변화액</span><b className="metric-number">{formatCurrency(scenarioResult.delta)}</b></div>
+                    <div className="score-row"><span>증감률</span><b className="metric-number">{formatPercent(scenarioResult.deltaRate)}</b></div>
+                    <div className="score-row"><span>인건비율</span><b className="metric-number">{formatPercent(scenarioResult.ratio)}</b></div>
+                    <div className="score-row"><span>-1% 임금 인상 영향</span><b className="metric-number">{formatCurrency(sensitivity.minus1Impact)}</b></div>
+                    <div className="score-row"><span>+1% 임금 인상 영향</span><b className="metric-number">{formatCurrency(sensitivity.plus1Impact)}</b></div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeSection === "forecast" && (
+              <div id="forecast" className="view-shell fade-in">
+                <section className="summary-strip">
+                  {forecastRows.map((r) => (
+                    <div key={r.yearLabel} className="summary-item">
+                      <div className="summary-label">{r.yearLabel}</div>
+                      <div className="summary-value metric-number">{formatCurrencyShort(r.yearlyCost)}</div>
+                      <div className="summary-note">{formatNumber(r.people)}명 / {formatPercent(r.laborRatio)}</div>
+                    </div>
+                  ))}
+                </section>
+                <section className="content-grid two">
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-forecast mb-3">계획 입력</h2>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <NumberInput label="연간 인상률(%)" value={forecastInput.annualRaiseRate} onChange={(v) => saveForecast({ ...forecastInput, annualRaiseRate: v })} />
+                      <NumberInput label="매출 성장률(%)" value={forecastInput.revenueGrowthRate} onChange={(v) => saveForecast({ ...forecastInput, revenueGrowthRate: v })} />
+                      <NumberInput label="Y1 채용(명)" value={forecastInput.hireY1} onChange={(v) => saveForecast({ ...forecastInput, hireY1: v })} />
+                      <NumberInput label="Y1 퇴직(명)" value={forecastInput.retireY1} onChange={(v) => saveForecast({ ...forecastInput, retireY1: v })} />
+                      <NumberInput label="Y2 채용(명)" value={forecastInput.hireY2} onChange={(v) => saveForecast({ ...forecastInput, hireY2: v })} />
+                      <NumberInput label="Y2 퇴직(명)" value={forecastInput.retireY2} onChange={(v) => saveForecast({ ...forecastInput, retireY2: v })} />
+                      <NumberInput label="Y3 채용(명)" value={forecastInput.hireY3} onChange={(v) => saveForecast({ ...forecastInput, hireY3: v })} />
+                      <NumberInput label="Y3 퇴직(명)" value={forecastInput.retireY3} onChange={(v) => saveForecast({ ...forecastInput, retireY3: v })} />
+                    </div>
+                  </div>
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-core mb-3">Forecast Table</h2>
+                    <div className="overflow-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr><th className="text-left py-2">연도</th><th className="text-right">예상 인원</th><th className="text-right">예상 인건비</th><th className="text-right">인건비율</th></tr></thead>
+                        <tbody>
+                          {forecastRows.map((r) => (
+                            <tr key={r.yearLabel} className="border-b border-slate-100">
+                              <td className="py-2">{r.yearLabel}</td>
+                              <td className="text-right metric-number">{formatNumber(r.people)}명</td>
+                              <td className="text-right metric-number">{formatCurrency(r.yearlyCost)}</td>
+                              <td className="text-right metric-number">{formatPercent(r.laborRatio)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeSection === "productivity" && (
+              <div id="productivity" className="view-shell fade-in">
+                <section className="content-grid two">
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-productivity mb-3">생산성 입력</h2>
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <NumberInput label="연간 생산량" value={productivity.annualProduction} onChange={(v) => saveProductivity({ ...productivity, annualProduction: v })} />
+                      <NumberInput label="1인당 생산성" value={productivity.productivityPerPerson} onChange={(v) => saveProductivity({ ...productivity, productivityPerPerson: v })} />
+                      <NumberInput label="잔업시간" value={productivity.overtimeHours} onChange={(v) => saveProductivity({ ...productivity, overtimeHours: v })} />
+                    </div>
+                  </div>
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-core mb-3">적정 인원 산출</h2>
+                    <div className="score-row"><span>적정 인원</span><b className="metric-number">{formatNumber(productivityResult.required)}명</b></div>
+                    <div className="score-row"><span>과잉/부족 인원</span><b className="metric-number">{formatNumber(productivityResult.gap)}명</b></div>
+                    <div className="score-row"><span>인력 과잉 비용 추정</span><b className="metric-number">{formatCurrency(productivityResult.excessCost)}</b></div>
+                  </div>
+                </section>
+                <section className="panel p-4 md:p-5">
+                  <h2 className="section-title tone-analytics mb-3">운영 판단</h2>
+                  <div className="policy-list">
+                    <div className="policy-row"><b>과잉 상태</b><span>양수이면 재배치/채용 동결, 음수이면 충원 또는 생산성 개선을 검토합니다.</span><span className="badge-soft">{formatNumber(productivityResult.gap)}명</span></div>
+                    <div className="policy-row"><b>비용 영향</b><span>현재 평균 인건비 기준으로 과잉 인력 비용을 추정합니다.</span><span className="badge-soft">{formatCurrencyShort(productivityResult.excessCost)}</span></div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeSection === "analytics" && (
+              <div id="analytics" className="view-shell fade-in">
+                <section className="content-grid equal">
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-analytics mb-3">직급별 인건비 집중도</h2>
+                    {gradeCostConcentration.slice(0, 8).map((g) => (
+                      <div key={g.grade} className="score-row"><span>{g.grade}</span><b className="metric-number">{formatPercent(g.share)}</b></div>
+                    ))}
+                  </div>
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-core mb-3">부서별 인건비 Top5</h2>
+                    {departmentTop5.map((d) => (
+                      <div key={d.department} className="score-row"><span>{d.department}</span><b className="metric-number">{formatCurrency(d.cost)}</b></div>
+                    ))}
+                    {!departmentTop5.length && <div className="empty-state">부서별 데이터가 없습니다.</div>}
+                  </div>
+                </section>
+                <section className="content-grid two">
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-sim mb-3">증가 원인 자동 요약</h2>
+                    <p className="subtext">{autoCauseSummary}</p>
+                  </div>
+                  <div className="panel p-4 md:p-5">
+                    <h2 className="section-title tone-forecast mb-3">손익 민감도</h2>
+                    <div className="score-row"><span>-1% 임금 인상률</span><b className="metric-number">{formatCurrency(sensitivity.minus1Impact)}</b></div>
+                    <div className="score-row"><span>+1% 임금 인상률</span><b className="metric-number">{formatCurrency(sensitivity.plus1Impact)}</b></div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeSection === "charts" && (
+              <div id="charts" className="view-shell fade-in">
+                <section className="content-grid equal">
+                  <div className="panel p-4 md:p-5"><h3 className="section-title tone-core mb-2">인건비 구성</h3><canvas ref={compositionChartRef} height="220"></canvas></div>
+                  <div className="panel p-4 md:p-5"><h3 className="section-title tone-analytics mb-2">직급별 비용 분포</h3><canvas ref={gradeChartRef} height="220"></canvas></div>
+                  <div className="panel p-4 md:p-5"><h3 className="section-title tone-sim mb-2">시나리오 전후 비교</h3><canvas ref={compareChartRef} height="220"></canvas></div>
+                  <div className="panel p-4 md:p-5"><h3 className="section-title tone-forecast mb-2">3년 Forecast</h3><canvas ref={forecastChartRef} height="220"></canvas></div>
+                </section>
+              </div>
+            )}
+
+            {activeSection === "report" && (
+              <section id="report" className="panel p-4 md:p-5 print-break fade-in">
+                <div className="section-head">
+                  <h2 className="section-title tone-core">자동 보고서 생성</h2>
                   <button
                     className="btn-primary px-4 py-2 rounded-xl text-sm no-print"
-                    onClick={() => setEmployeeModal({ open: true, mode: "create", target: null })}
+                    onClick={() => {
+                      const reportWin = window.open("", "_blank");
+                      reportWin.document.write(`
+                        <html>
+                          <head>
+                            <meta charset="utf-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title>2026년 인건비 시뮬레이션 결과 보고서</title>
+                            <style>
+                              body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;margin:0;padding:24px;color:#0f172a;}
+                              .wrap{max-width:1100px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(15,23,42,.08);}
+                              @media print{body{background:#fff;padding:0}.wrap{box-shadow:none;border:none;padding:0}}
+                            </style>
+                          </head>
+                          <body><div class="wrap">${reportHtml}</div></body>
+                        </html>
+                      `);
+                      reportWin.document.close();
+                    }}
                   >
-                    <i className="fa-solid fa-plus mr-2"></i>직원 추가
+                    <i className="fa-solid fa-file-lines mr-2"></i>보고서 출력
                   </button>
                 </div>
-                <div className="overflow-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left border-b border-slate-200">
-                        <th className="py-2">이름</th>
-                        <th>부서</th>
-                        <th>직급</th>
-                        <th>고용형태</th>
-                        <th className="text-right">총연봉</th>
-                        <th className="no-print">관리</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {employees.map((e) => (
-                        <tr key={e.id} className="border-b border-slate-100">
-                          <td className="py-2">{e.name || "-"}</td>
-                          <td>{e.department}</td>
-                          <td>{e.grade}</td>
-                          <td>{e.employmentType}</td>
-                          <td className="text-right font-semibold metric-number">{formatCurrencyManwon(calcEmployeeTotal(e))}</td>
-                          <td className="no-print">
-                            <div className="flex gap-1">
-                              <button
-                                className="btn-secondary px-2 py-1 rounded-lg"
-                                onClick={() => setEmployeeModal({ open: true, mode: "edit", target: e })}
-                              >
-                                수정
-                              </button>
-                              <button
-                                className="btn-danger px-2 py-1 rounded-lg"
-                                onClick={() => setDeleteTarget(e)}
-                              >
-                                삭제
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {!employees.length && (
-                        <tr>
-                          <td colSpan="6" className="text-center py-8 subtext">
-                            데이터가 없습니다. 직원을 추가하세요.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                <div className="panel-muted rounded-xl p-4 text-sm" dangerouslySetInnerHTML={{ __html: reportHtml }} />
+              </section>
+            )}
 
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm">
-                <h2 className="section-title tone-core mb-3">기준값 설정</h2>
-                <NumberInput
-                  label="연간 매출(원)"
-                  value={settings.annualRevenue}
-                  onChange={(v) => saveSettings({ ...settings, annualRevenue: v })}
-                />
-                <NumberInput
-                  label="인건비율 경고 기준(%)"
-                  value={settings.warningLaborRatio}
-                  onChange={(v) => saveSettings({ ...settings, warningLaborRatio: v })}
-                />
-                <div className="panel-muted rounded-lg p-3 text-sm mt-3">
-                  <div className="font-semibold mb-1">리스크 알림</div>
-                  <ul className="space-y-1">
-                    {riskAlerts.map((r, idx) => (
-                      <li key={idx} className={r.level === "danger" ? "text-red-500" : r.level === "warn" ? "text-amber-500" : "subtext"}>
-                        <i className="fa-solid fa-circle-exclamation mr-2"></i>
-                        {r.text}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </section>
-
-            <section className="grid lg:grid-cols-2 gap-4 print-break fade-in">
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm">
-                <h2 className="section-title tone-sim mb-3">인건비 시뮬레이션 엔진</h2>
-                <div className="grid md:grid-cols-2 gap-3">
-                  <NumberInput
-                    label="인원 증감(명)"
-                    value={scenario.headcountChange}
-                    onChange={(v) => saveScenario({ ...scenario, headcountChange: v })}
-                  />
-                  <NumberInput
-                    label="직급 승진 인상률(%)"
-                    value={scenario.promotionRaiseRate}
-                    onChange={(v) => saveScenario({ ...scenario, promotionRaiseRate: v })}
-                  />
-                  <NumberInput
-                    label="최저임금 인상률(%)"
-                    value={scenario.minWageRaiseRate}
-                    onChange={(v) => saveScenario({ ...scenario, minWageRaiseRate: v })}
-                  />
-                  <NumberInput
-                    label="상여금 조정률(%)"
-                    value={scenario.bonusAdjustRate}
-                    onChange={(v) => saveScenario({ ...scenario, bonusAdjustRate: v })}
-                  />
-                  <NumberInput
-                    label="성과급 지급률(%)"
-                    value={scenario.incentivePayoutRate}
-                    onChange={(v) => saveScenario({ ...scenario, incentivePayoutRate: v })}
-                  />
-                  <NumberInput
-                    label="4.5일제 임금 조정률(%)"
-                    value={scenario.fourHalfDayAdjustRate}
-                    onChange={(v) => saveScenario({ ...scenario, fourHalfDayAdjustRate: v })}
-                  />
-                  <NumberInput
-                    label="평균 임금 인상률(%)"
-                    value={scenario.avgRaiseRate}
-                    onChange={(v) => saveScenario({ ...scenario, avgRaiseRate: v })}
-                  />
-                </div>
-                <div className="panel-muted rounded-xl p-3 mt-4 space-y-2">
-                  <div className="flex justify-between text-sm"><span>총인건비 변화액</span><b className="metric-number metric-md">{formatCurrency(scenarioResult.delta)}</b></div>
-                  <div className="flex justify-between text-sm"><span>증감률</span><b className="metric-number metric-md">{formatPercent(scenarioResult.deltaRate)}</b></div>
-                  <div className="flex justify-between text-sm"><span>EBITDA 영향 추정치</span><b className="metric-number metric-md">{formatCurrency(scenarioResult.ebitdaImpact)}</b></div>
-                  <div className="flex justify-between text-sm"><span>인건비율(매출 대비)</span><b className="metric-number metric-md">{formatPercent(scenarioResult.ratio)}</b></div>
-                </div>
-              </div>
-
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm">
-                <h2 className="section-title tone-forecast mb-3">3년 Forecast</h2>
-                <div className="grid md:grid-cols-2 gap-3">
-                  <NumberInput
-                    label="연간 인상률(%)"
-                    value={forecastInput.annualRaiseRate}
-                    onChange={(v) => saveForecast({ ...forecastInput, annualRaiseRate: v })}
-                  />
-                  <NumberInput
-                    label="매출 성장률(%)"
-                    value={forecastInput.revenueGrowthRate}
-                    onChange={(v) => saveForecast({ ...forecastInput, revenueGrowthRate: v })}
-                  />
-                  <NumberInput label="Y1 채용(명)" value={forecastInput.hireY1} onChange={(v) => saveForecast({ ...forecastInput, hireY1: v })} />
-                  <NumberInput label="Y1 퇴직(명)" value={forecastInput.retireY1} onChange={(v) => saveForecast({ ...forecastInput, retireY1: v })} />
-                  <NumberInput label="Y2 채용(명)" value={forecastInput.hireY2} onChange={(v) => saveForecast({ ...forecastInput, hireY2: v })} />
-                  <NumberInput label="Y2 퇴직(명)" value={forecastInput.retireY2} onChange={(v) => saveForecast({ ...forecastInput, retireY2: v })} />
-                  <NumberInput label="Y3 채용(명)" value={forecastInput.hireY3} onChange={(v) => saveForecast({ ...forecastInput, hireY3: v })} />
-                  <NumberInput label="Y3 퇴직(명)" value={forecastInput.retireY3} onChange={(v) => saveForecast({ ...forecastInput, retireY3: v })} />
-                </div>
-                <div className="overflow-auto mt-4">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left py-2">연도</th>
-                        <th className="text-right">예상 인원</th>
-                        <th className="text-right">예상 인건비</th>
-                        <th className="text-right">인건비율</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {forecastRows.map((r) => (
-                        <tr key={r.yearLabel} className="border-b border-slate-100">
-                          <td className="py-2">{r.yearLabel}</td>
-                          <td className="text-right metric-number">{formatNumber(r.people)}명</td>
-                          <td className="text-right metric-number">{formatCurrency(r.yearlyCost)}</td>
-                          <td className="text-right metric-number">{formatPercent(r.laborRatio)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
-
-            <section className="grid lg:grid-cols-2 gap-4 print-break fade-in">
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm">
-                <h2 className="section-title tone-productivity mb-3">생산성 기반 적정 인원 산출</h2>
-                <div className="grid md:grid-cols-3 gap-3">
-                  <NumberInput
-                    label="연간 생산량"
-                    value={productivity.annualProduction}
-                    onChange={(v) => saveProductivity({ ...productivity, annualProduction: v })}
-                  />
-                  <NumberInput
-                    label="1인당 생산성"
-                    value={productivity.productivityPerPerson}
-                    onChange={(v) => saveProductivity({ ...productivity, productivityPerPerson: v })}
-                  />
-                  <NumberInput
-                    label="잔업시간"
-                    value={productivity.overtimeHours}
-                    onChange={(v) => saveProductivity({ ...productivity, overtimeHours: v })}
-                  />
-                </div>
-                <div className="panel-muted rounded-xl p-3 mt-4 space-y-2">
-                  <div className="flex justify-between text-sm"><span>적정 인원</span><b className="metric-number metric-md">{formatNumber(productivityResult.required)}명</b></div>
-                  <div className="flex justify-between text-sm"><span>과잉/부족 인원</span><b className="metric-number metric-md">{formatNumber(productivityResult.gap)}명</b></div>
-                  <div className="flex justify-between text-sm"><span>인력 과잉 비용 추정</span><b className="metric-number metric-md">{formatCurrency(productivityResult.excessCost)}</b></div>
-                </div>
-              </div>
-
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm">
-                <h2 className="section-title tone-analytics mb-3">고급 분석</h2>
-                <div className="space-y-3 text-sm">
-                  <div className="panel-muted rounded-lg p-3">
-                    <b>직급별 인건비 집중도 분석</b>
-                    <div className="mt-2 grid grid-cols-2 gap-1">
-                      {gradeCostConcentration.slice(0, 6).map((g) => (
-                        <div key={g.grade} className="flex justify-between">
-                          <span>{g.grade}</span>
-                          <span className="metric-number">{formatPercent(g.share)}</span>
-                        </div>
-                      ))}
+            {activeSection === "logs" && (
+              <section id="logs" className="panel p-4 md:p-5 no-print fade-in">
+                <h2 className="section-title tone-core mb-3">변경 이력</h2>
+                <div className="space-y-2 text-sm">
+                  {logs.map((l) => (
+                    <div key={l.id} className="score-row">
+                      <span><b>{l.action}</b> - {l.detail}</span>
+                      <span className="subtext">{l.createdAt?.seconds ? new Date(l.createdAt.seconds * 1000).toLocaleString("ko-KR") : "시간 미정"}</span>
                     </div>
-                  </div>
-                  <div className="panel-muted rounded-lg p-3">
-                    <b>부서별 인건비 Top5</b>
-                    <div className="mt-2 space-y-1">
-                      {departmentTop5.map((d) => (
-                        <div key={d.department} className="flex justify-between">
-                          <span>{d.department}</span>
-                          <span className="metric-number">{formatCurrency(d.cost)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="panel-muted rounded-lg p-3">
-                    <b>인건비 증가 원인 자동 요약</b>
-                    <p className="mt-2">{autoCauseSummary}</p>
-                  </div>
-                  <div className="panel-muted rounded-lg p-3">
-                    <b>손익 민감도 분석 (±1% 임금인상률)</b>
-                    <div className="mt-2 flex justify-between">
-                      <span>-1% 영향</span>
-                      <span className="metric-number">{formatCurrency(sensitivity.minus1Impact)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>+1% 영향</span>
-                      <span className="metric-number">{formatCurrency(sensitivity.plus1Impact)}</span>
-                    </div>
-                  </div>
+                  ))}
+                  {!logs.length && <div className="empty-state">아직 저장된 변경 이력이 없습니다.</div>}
                 </div>
-              </div>
-            </section>
-
-            <section className="grid lg:grid-cols-2 gap-4 print-break fade-in">
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm">
-                <h3 className="section-title tone-core mb-2">인건비 구성 파이차트</h3>
-                <canvas ref={compositionChartRef} height="220"></canvas>
-              </div>
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm">
-                <h3 className="section-title tone-analytics mb-2">직급별 비용 분포</h3>
-                <canvas ref={gradeChartRef} height="220"></canvas>
-              </div>
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm">
-                <h3 className="section-title tone-sim mb-2">시나리오 전후 비교</h3>
-                <canvas ref={compareChartRef} height="220"></canvas>
-              </div>
-              <div className="panel rounded-2xl p-4 md:p-5 shadow-sm">
-                <h3 className="section-title tone-forecast mb-2">3년 Forecast 그래프</h3>
-                <canvas ref={forecastChartRef} height="220"></canvas>
-              </div>
-            </section>
-
-            <section className="panel rounded-2xl p-4 md:p-5 shadow-sm print-break fade-in">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="section-title tone-core">자동 보고서 생성</h2>
-                <button
-                  className="btn-primary px-4 py-2 rounded-xl text-sm no-print"
-                  onClick={() => {
-                    const reportWin = window.open("", "_blank");
-                    reportWin.document.write(`
-                      <html>
-                        <head>
-                          <meta charset="utf-8">
-                          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                          <title>2026년 인건비 시뮬레이션 결과 보고서</title>
-                          <style>
-                            body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;margin:0;padding:24px;color:#0f172a;}
-                            .wrap{max-width:1100px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(15,23,42,.08);}
-                            @media print{body{background:#fff;padding:0}.wrap{box-shadow:none;border:none;padding:0}}
-                          </style>
-                        </head>
-                        <body>
-                          <div class="wrap">
-                        ${reportHtml}
-                          </div>
-                        </body>
-                      </html>
-                    `);
-                    reportWin.document.close();
-                  }}
-                >
-                  <i className="fa-solid fa-file-lines mr-2"></i>보고서 출력
-                </button>
-              </div>
-              <div
-                className="panel-muted rounded-xl p-4 text-sm"
-                dangerouslySetInnerHTML={{ __html: reportHtml }}
-              />
-            </section>
-
-            <section className="panel rounded-2xl p-4 md:p-5 shadow-sm no-print fade-in">
-              <h2 className="section-title tone-core mb-3">변경 이력(Log)</h2>
-              <div className="space-y-2 text-sm">
-                {logs.map((l) => (
-                  <div key={l.id} className="panel-muted rounded-lg p-3 flex justify-between gap-2">
-                    <span>
-                      <b>{l.action}</b> - {l.detail}
-                    </span>
-                    <span className="subtext">
-                      {l.createdAt?.seconds
-                        ? new Date(l.createdAt.seconds * 1000).toLocaleString("ko-KR")
-                        : "시간 미정"}
-                    </span>
-                  </div>
-                ))}
-                {!logs.length && <div className="subtext">아직 저장된 변경 이력이 없습니다.</div>}
-              </div>
-            </section>
+              </section>
+            )}
+            </main>
           </div>
         );
       }
