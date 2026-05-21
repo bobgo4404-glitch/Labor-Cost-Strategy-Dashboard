@@ -236,7 +236,7 @@
       }
       .summary-strip {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 16px;
       }
       .summary-item {
@@ -1283,6 +1283,10 @@
         const [peoplePage, setPeoplePage] = useState(1);
         const defaultsEnsuredRef = useRef(false);
         const sourceExclusionsRef = useRef(new Set());
+        const settingsRef = useRef(DEFAULT_SETTINGS);
+        const scenarioRef = useRef(DEFAULT_SCENARIO);
+        const forecastInputRef = useRef(DEFAULT_FORECAST);
+        const productivityRef = useRef(DEFAULT_PRODUCTIVITY);
 
         const compositionChartRef = useRef(null);
         const gradeChartRef = useRef(null);
@@ -1312,6 +1316,19 @@
         useEffect(() => {
           document.body.className = "theme-light";
         }, []);
+
+        useEffect(() => {
+          settingsRef.current = settings;
+        }, [settings]);
+        useEffect(() => {
+          scenarioRef.current = scenario;
+        }, [scenario]);
+        useEffect(() => {
+          forecastInputRef.current = forecastInput;
+        }, [forecastInput]);
+        useEffect(() => {
+          productivityRef.current = productivity;
+        }, [productivity]);
 
         useEffect(() => {
           if (window.FirebaseServices) {
@@ -1477,6 +1494,7 @@
           () => employees.reduce((acc, emp) => acc + calcEmployeeTotal(emp), 0),
           [employees]
         );
+        const monthlyLaborCost = totalLaborCost / 12;
         const avgCostPerPerson = totalPeople ? totalLaborCost / totalPeople : 0;
         const laborRatio = settings.annualRevenue ? (totalLaborCost / settings.annualRevenue) * 100 : 0;
 
@@ -2059,9 +2077,11 @@
             const { fns, db } = services;
             await fns.setDoc(fns.doc(db, SHARED_COLLECTION, id), { ...data, updatedAt: fns.serverTimestamp() }, { merge: true });
             if (successMessage) setToast({ type: "success", message: successMessage });
+            return true;
           } catch (error) {
             console.error(error);
             setToast({ type: "error", message: "저장 실패: 권한/네트워크 상태를 확인하세요." });
+            return false;
           }
         };
 
@@ -2207,27 +2227,39 @@
           }
         };
 
-        const saveScenario = async (next) => {
+        const saveScenario = async (patch) => {
+          const next = { ...scenarioRef.current, ...patch };
+          scenarioRef.current = next;
           setScenario(next);
-          await saveDoc("scenario_main", { type: "scenario", ...next }, "시뮬레이션 값이 저장되었습니다.");
+          const saved = await saveDoc("scenario_main", { type: "scenario", ...next }, "시뮬레이션 값이 저장되었습니다.");
+          if (!saved) return;
           await addLog("scenario_update", "시나리오 파라미터 변경");
         };
 
-        const saveForecast = async (next) => {
+        const saveForecast = async (patch) => {
+          const next = { ...forecastInputRef.current, ...patch };
+          forecastInputRef.current = next;
           setForecastInput(next);
-          await saveDoc("forecast_main", { type: "forecast", ...next }, "3년 Forecast 값이 저장되었습니다.");
+          const saved = await saveDoc("forecast_main", { type: "forecast", ...next }, "3년 Forecast 값이 저장되었습니다.");
+          if (!saved) return;
           await addLog("forecast_update", "Forecast 파라미터 변경");
         };
 
-        const saveProductivity = async (next) => {
+        const saveProductivity = async (patch) => {
+          const next = { ...productivityRef.current, ...patch };
+          productivityRef.current = next;
           setProductivity(next);
-          await saveDoc("productivity_main", { type: "productivity", ...next }, "생산성 분석 값이 저장되었습니다.");
+          const saved = await saveDoc("productivity_main", { type: "productivity", ...next }, "생산성 분석 값이 저장되었습니다.");
+          if (!saved) return;
           await addLog("productivity_update", "생산성 파라미터 변경");
         };
 
-        const saveSettings = async (next) => {
+        const saveSettings = async (patch) => {
+          const next = { ...settingsRef.current, ...patch };
+          settingsRef.current = next;
           setSettings(next);
-          await saveDoc("settings_main", { type: "settings", ...next }, "기준값이 저장되었습니다.");
+          const saved = await saveDoc("settings_main", { type: "settings", ...next }, "기준값이 저장되었습니다.");
+          if (!saved) return;
           await addLog("settings_update", "기준 매출/경고치 변경");
         };
 
@@ -2336,6 +2368,7 @@
                 <section className="summary-strip print-break">
                   <KPI icon="fa-solid fa-users" label="총 인원" value={`${formatNumber(totalPeople)}명`} />
                   <KPI icon="fa-solid fa-coins" label="총 인건비" value={formatCurrencyManwon(totalLaborCost)} />
+                  <KPI icon="fa-solid fa-calendar-days" label="월 인건비" value={formatCurrencyManwon(monthlyLaborCost)} />
                   <KPI icon="fa-solid fa-chart-pie" label="인건비율" value={formatPercent(laborRatio)} tone={laborRatio > safeNumber(settings.warningLaborRatio) ? "danger" : "normal"} />
                   <KPI icon="fa-solid fa-arrow-trend-up" label="올해 예상 증가율" value={formatPercent(scenarioResult.deltaRate)} tone={scenarioResult.deltaRate > 0 ? "warn" : "normal"} />
                 </section>
@@ -2550,8 +2583,8 @@
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-core mb-3">운영 기준값</h2>
                     <div className="grid md:grid-cols-2 gap-3">
-                      <NumberInput label="연간 매출(원)" value={settings.annualRevenue} onChange={(v) => saveSettings({ ...settings, annualRevenue: v })} />
-                      <NumberInput label="인건비율 경고 기준(%)" value={settings.warningLaborRatio} onChange={(v) => saveSettings({ ...settings, warningLaborRatio: v })} />
+                      <NumberInput label="연간 매출(원)" value={settings.annualRevenue} onChange={(v) => saveSettings({ annualRevenue: v })} />
+                      <NumberInput label="인건비율 경고 기준(%)" value={settings.warningLaborRatio} onChange={(v) => saveSettings({ warningLaborRatio: v })} />
                     </div>
                     <div className="score-row mt-4"><span>현재 인건비율</span><b className="metric-number">{formatPercent(laborRatio)}</b></div>
                     <div className="score-row"><span>시나리오 적용 후</span><b className="metric-number">{formatPercent(scenarioResult.ratio)}</b></div>
@@ -2591,14 +2624,14 @@
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-sim mb-3">시나리오 입력</h2>
                     <div className="grid md:grid-cols-2 gap-3">
-                      <NumberInput label="인원 증감(명)" value={scenario.headcountChange} onChange={(v) => saveScenario({ ...scenario, headcountChange: v })} />
-                      <NumberInput label="평균 임금 인상률(%)" value={scenario.avgRaiseRate} onChange={(v) => saveScenario({ ...scenario, avgRaiseRate: v })} />
-                      <NumberInput label="직급 승진 인상률(%)" value={scenario.promotionRaiseRate} onChange={(v) => saveScenario({ ...scenario, promotionRaiseRate: v })} />
-                      <NumberInput label="현행 최저시급(원)" value={scenario.currentMinimumWage} onChange={(v) => saveScenario({ ...scenario, currentMinimumWage: v })} />
-                      <NumberInput label="적용 최저시급(원)" value={scenario.targetMinimumWage} onChange={(v) => saveScenario({ ...scenario, targetMinimumWage: v })} />
-                      <NumberInput label="상여금 조정률(%)" value={scenario.bonusAdjustRate} onChange={(v) => saveScenario({ ...scenario, bonusAdjustRate: v })} />
-                      <NumberInput label="성과급 지급률(%)" value={scenario.incentivePayoutRate} onChange={(v) => saveScenario({ ...scenario, incentivePayoutRate: v })} />
-                      <NumberInput label="4.5일제 임금 조정률(%)" value={scenario.fourHalfDayAdjustRate} onChange={(v) => saveScenario({ ...scenario, fourHalfDayAdjustRate: v })} />
+                      <NumberInput label="인원 증감(명)" value={scenario.headcountChange} onChange={(v) => saveScenario({ headcountChange: v })} />
+                      <NumberInput label="평균 임금 인상률(%)" value={scenario.avgRaiseRate} onChange={(v) => saveScenario({ avgRaiseRate: v })} />
+                      <NumberInput label="직급 승진 인상률(%)" value={scenario.promotionRaiseRate} onChange={(v) => saveScenario({ promotionRaiseRate: v })} />
+                      <NumberInput label="현행 최저시급(원)" value={scenario.currentMinimumWage} onChange={(v) => saveScenario({ currentMinimumWage: v })} />
+                      <NumberInput label="적용 최저시급(원)" value={scenario.targetMinimumWage} onChange={(v) => saveScenario({ targetMinimumWage: v })} />
+                      <NumberInput label="상여금 조정률(%)" value={scenario.bonusAdjustRate} onChange={(v) => saveScenario({ bonusAdjustRate: v })} />
+                      <NumberInput label="성과급 지급률(%)" value={scenario.incentivePayoutRate} onChange={(v) => saveScenario({ incentivePayoutRate: v })} />
+                      <NumberInput label="4.5일제 임금 조정률(%)" value={scenario.fourHalfDayAdjustRate} onChange={(v) => saveScenario({ fourHalfDayAdjustRate: v })} />
                     </div>
                   </div>
                   <div className="panel p-4 md:p-5">
@@ -2631,14 +2664,14 @@
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-forecast mb-3">계획 입력</h2>
                     <div className="grid md:grid-cols-2 gap-3">
-                      <NumberInput label="연간 인상률(%)" value={forecastInput.annualRaiseRate} onChange={(v) => saveForecast({ ...forecastInput, annualRaiseRate: v })} />
-                      <NumberInput label="매출 성장률(%)" value={forecastInput.revenueGrowthRate} onChange={(v) => saveForecast({ ...forecastInput, revenueGrowthRate: v })} />
-                      <NumberInput label="Y1 채용(명)" value={forecastInput.hireY1} onChange={(v) => saveForecast({ ...forecastInput, hireY1: v })} />
-                      <NumberInput label="Y1 퇴직(명)" value={forecastInput.retireY1} onChange={(v) => saveForecast({ ...forecastInput, retireY1: v })} />
-                      <NumberInput label="Y2 채용(명)" value={forecastInput.hireY2} onChange={(v) => saveForecast({ ...forecastInput, hireY2: v })} />
-                      <NumberInput label="Y2 퇴직(명)" value={forecastInput.retireY2} onChange={(v) => saveForecast({ ...forecastInput, retireY2: v })} />
-                      <NumberInput label="Y3 채용(명)" value={forecastInput.hireY3} onChange={(v) => saveForecast({ ...forecastInput, hireY3: v })} />
-                      <NumberInput label="Y3 퇴직(명)" value={forecastInput.retireY3} onChange={(v) => saveForecast({ ...forecastInput, retireY3: v })} />
+                      <NumberInput label="연간 인상률(%)" value={forecastInput.annualRaiseRate} onChange={(v) => saveForecast({ annualRaiseRate: v })} />
+                      <NumberInput label="매출 성장률(%)" value={forecastInput.revenueGrowthRate} onChange={(v) => saveForecast({ revenueGrowthRate: v })} />
+                      <NumberInput label="Y1 채용(명)" value={forecastInput.hireY1} onChange={(v) => saveForecast({ hireY1: v })} />
+                      <NumberInput label="Y1 퇴직(명)" value={forecastInput.retireY1} onChange={(v) => saveForecast({ retireY1: v })} />
+                      <NumberInput label="Y2 채용(명)" value={forecastInput.hireY2} onChange={(v) => saveForecast({ hireY2: v })} />
+                      <NumberInput label="Y2 퇴직(명)" value={forecastInput.retireY2} onChange={(v) => saveForecast({ retireY2: v })} />
+                      <NumberInput label="Y3 채용(명)" value={forecastInput.hireY3} onChange={(v) => saveForecast({ hireY3: v })} />
+                      <NumberInput label="Y3 퇴직(명)" value={forecastInput.retireY3} onChange={(v) => saveForecast({ retireY3: v })} />
                     </div>
                   </div>
                   <div className="panel p-4 md:p-5">
@@ -2669,9 +2702,9 @@
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-productivity mb-3">생산성 입력</h2>
                     <div className="grid md:grid-cols-3 gap-3">
-                      <NumberInput label="연간 생산량" value={productivity.annualProduction} onChange={(v) => saveProductivity({ ...productivity, annualProduction: v })} />
-                      <NumberInput label="1인당 생산성" value={productivity.productivityPerPerson} onChange={(v) => saveProductivity({ ...productivity, productivityPerPerson: v })} />
-                      <NumberInput label="잔업시간" value={productivity.overtimeHours} onChange={(v) => saveProductivity({ ...productivity, overtimeHours: v })} />
+                      <NumberInput label="연간 생산량" value={productivity.annualProduction} onChange={(v) => saveProductivity({ annualProduction: v })} />
+                      <NumberInput label="1인당 생산성" value={productivity.productivityPerPerson} onChange={(v) => saveProductivity({ productivityPerPerson: v })} />
+                      <NumberInput label="잔업시간" value={productivity.overtimeHours} onChange={(v) => saveProductivity({ overtimeHours: v })} />
                     </div>
                   </div>
                   <div className="panel p-4 md:p-5">
