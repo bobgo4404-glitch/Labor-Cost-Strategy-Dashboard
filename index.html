@@ -685,6 +685,7 @@
         getFirestore,
         collection,
         doc,
+        getDocFromServer,
         setDoc,
         addDoc,
         deleteDoc,
@@ -740,6 +741,7 @@
           onAuthStateChanged,
           collection,
           doc,
+          getDocFromServer,
           setDoc,
           addDoc,
           deleteDoc,
@@ -1285,6 +1287,7 @@
         const [settingsDraft, setSettingsDraft] = useState(DEFAULT_SETTINGS);
         const [settingsDirty, setSettingsDirty] = useState(false);
         const [settingsSaving, setSettingsSaving] = useState(false);
+        const [settingsHasCloudDoc, setSettingsHasCloudDoc] = useState(false);
         const [scenario, setScenario] = useState(DEFAULT_SCENARIO);
         const [forecastInput, setForecastInput] = useState(DEFAULT_FORECAST);
         const [productivity, setProductivity] = useState(DEFAULT_PRODUCTIVITY);
@@ -1430,6 +1433,7 @@
                     nextSettings && incomingSettingsVersion < settingsWriteVersionRef.current
                       ? settingsRef.current
                       : nextSettings || DEFAULT_SETTINGS;
+                  setSettingsHasCloudDoc(!!nextSettings);
                   setSettings(resolvedSettings);
                   setScenario(nextScenario || DEFAULT_SCENARIO);
                   setForecastInput(nextForecast || DEFAULT_FORECAST);
@@ -2305,6 +2309,19 @@
           setSettingsDraft((prev) => ({ ...prev, ...patch }));
         };
 
+        const confirmSettingsSavedFromCloud = async (expected) => {
+          const { fns, db } = services;
+          const snap = await fns.getDocFromServer(fns.doc(db, SHARED_COLLECTION, "settings_main"));
+          if (!snap.exists()) throw new Error("settings_main 문서가 서버에 없습니다.");
+          const cloud = { ...DEFAULT_SETTINGS, ...snap.data() };
+          const matches =
+            safeNumber(cloud.annualRevenue) === safeNumber(expected.annualRevenue) &&
+            safeNumber(cloud.warningLaborRatio) === safeNumber(expected.warningLaborRatio) &&
+            safeNumber(cloud.clientUpdatedAt) === safeNumber(expected.clientUpdatedAt);
+          if (!matches) throw new Error("서버에 저장된 기준값이 방금 입력한 값과 다릅니다.");
+          return cloud;
+        };
+
         const saveSettingsDraft = async () => {
           if (settingsSaving) return;
           const writeVersion = Date.now();
@@ -2317,18 +2334,31 @@
           };
           settingsWriteVersionRef.current = writeVersion;
           setSettingsSaving(true);
-          const saved = await saveDoc("settings_main", { type: "settings", ...next }, "기준값이 클라우드에 저장되었습니다.");
-          setSettingsSaving(false);
+          const saved = await saveDoc("settings_main", { type: "settings", ...next }, null);
           if (!saved) {
             settingsWriteVersionRef.current = previousWriteVersion;
+            setSettingsSaving(false);
             return;
           }
-          settingsRef.current = next;
-          setSettings(next);
-          setSettingsDraft(next);
-          settingsDirtyRef.current = false;
-          setSettingsDirty(false);
-          await addLog("settings_update", "기준 매출/경고치 변경");
+          try {
+            const confirmed = await confirmSettingsSavedFromCloud(next);
+            settingsRef.current = confirmed;
+            setSettings(confirmed);
+            setSettingsDraft(confirmed);
+            setSettingsHasCloudDoc(true);
+            settingsDirtyRef.current = false;
+            setSettingsDirty(false);
+            setToast({ type: "success", message: "기준값이 클라우드에 저장되었습니다." });
+            await addLog("settings_update", "기준 매출/경고치 변경");
+          } catch (error) {
+            console.error(error);
+            settingsWriteVersionRef.current = previousWriteVersion;
+            settingsDirtyRef.current = true;
+            setSettingsDirty(true);
+            setToast({ type: "error", message: "저장 확인 실패: 새로고침 전 다시 저장해 주세요." });
+          } finally {
+            setSettingsSaving(false);
+          }
         };
 
         const activeMeta = VIEW_META[activeSection] || VIEW_META.overview;
@@ -2656,12 +2686,12 @@
                     </div>
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                       <span className={`badge-soft ${settingsDirty ? "text-amber-600" : "primary"}`}>
-                        {settingsSaving ? "클라우드 저장 중" : settingsDirty ? "저장 필요" : "클라우드 저장됨"}
+                        {settingsSaving ? "클라우드 저장 중" : settingsDirty ? "저장 필요" : settingsHasCloudDoc ? "클라우드 저장됨" : "기본값 표시 중"}
                       </span>
                       <button
                         className="btn-primary px-4 py-2 rounded-xl text-sm"
                         onClick={saveSettingsDraft}
-                        disabled={!settingsDirty || settingsSaving}
+                        disabled={settingsSaving || (!settingsDirty && settingsHasCloudDoc)}
                       >
                         {settingsSaving ? "저장 중..." : "기준값 저장"}
                       </button>
@@ -3075,42 +3105,37 @@
         );
       }
 
+      async function ensureDefaultDoc({ fns, db, id, payload }) {
+        try {
+          const ref = fns.doc(db, SHARED_COLLECTION, id);
+          const snap = await fns.getDocFromServer(ref);
+          if (snap.exists()) return;
+          await fns.setDoc(ref, { ...payload, createdAt: fns.serverTimestamp() }, { merge: true });
+        } catch (error) {
+          console.warn(`${id} 기본값 확인 실패:`, error);
+        }
+      }
+
       async function ensureDefaultDocs({ fns, db, hasSettings, hasScenario, hasForecast, hasProductivity }) {
         const jobs = [];
         if (!hasSettings) {
           jobs.push(
-            fns.setDoc(
-              fns.doc(db, SHARED_COLLECTION, "settings_main"),
-              { type: "settings", ...DEFAULT_SETTINGS, createdAt: fns.serverTimestamp() },
-              { merge: true }
-            )
+            ensureDefaultDoc({ fns, db, id: "settings_main", payload: { type: "settings", ...DEFAULT_SETTINGS } })
           );
         }
         if (!hasScenario) {
           jobs.push(
-            fns.setDoc(
-              fns.doc(db, SHARED_COLLECTION, "scenario_main"),
-              { type: "scenario", ...DEFAULT_SCENARIO, createdAt: fns.serverTimestamp() },
-              { merge: true }
-            )
+            ensureDefaultDoc({ fns, db, id: "scenario_main", payload: { type: "scenario", ...DEFAULT_SCENARIO } })
           );
         }
         if (!hasForecast) {
           jobs.push(
-            fns.setDoc(
-              fns.doc(db, SHARED_COLLECTION, "forecast_main"),
-              { type: "forecast", ...DEFAULT_FORECAST, createdAt: fns.serverTimestamp() },
-              { merge: true }
-            )
+            ensureDefaultDoc({ fns, db, id: "forecast_main", payload: { type: "forecast", ...DEFAULT_FORECAST } })
           );
         }
         if (!hasProductivity) {
           jobs.push(
-            fns.setDoc(
-              fns.doc(db, SHARED_COLLECTION, "productivity_main"),
-              { type: "productivity", ...DEFAULT_PRODUCTIVITY, createdAt: fns.serverTimestamp() },
-              { merge: true }
-            )
+            ensureDefaultDoc({ fns, db, id: "productivity_main", payload: { type: "productivity", ...DEFAULT_PRODUCTIVITY } })
           );
         }
         await Promise.all(jobs);
