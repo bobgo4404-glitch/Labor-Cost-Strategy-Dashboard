@@ -1282,6 +1282,9 @@
 
         const [employees, setEmployees] = useState([]);
         const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+        const [settingsDraft, setSettingsDraft] = useState(DEFAULT_SETTINGS);
+        const [settingsDirty, setSettingsDirty] = useState(false);
+        const [settingsSaving, setSettingsSaving] = useState(false);
         const [scenario, setScenario] = useState(DEFAULT_SCENARIO);
         const [forecastInput, setForecastInput] = useState(DEFAULT_FORECAST);
         const [productivity, setProductivity] = useState(DEFAULT_PRODUCTIVITY);
@@ -1300,6 +1303,8 @@
         const defaultsEnsuredRef = useRef(false);
         const sourceExclusionsRef = useRef(new Set());
         const settingsRef = useRef(DEFAULT_SETTINGS);
+        const settingsDirtyRef = useRef(false);
+        const settingsWriteVersionRef = useRef(0);
         const scenarioRef = useRef(DEFAULT_SCENARIO);
         const forecastInputRef = useRef(DEFAULT_FORECAST);
         const productivityRef = useRef(DEFAULT_PRODUCTIVITY);
@@ -1335,7 +1340,13 @@
 
         useEffect(() => {
           settingsRef.current = settings;
+          if (!settingsDirtyRef.current) {
+            setSettingsDraft(settings);
+          }
         }, [settings]);
+        useEffect(() => {
+          settingsDirtyRef.current = settingsDirty;
+        }, [settingsDirty]);
         useEffect(() => {
           scenarioRef.current = scenario;
         }, [scenario]);
@@ -1414,7 +1425,12 @@
                       String(a.department || "").localeCompare(String(b.department || ""))
                     )
                   );
-                  setSettings(nextSettings || DEFAULT_SETTINGS);
+                  const incomingSettingsVersion = safeNumber(nextSettings?.clientUpdatedAt);
+                  const resolvedSettings =
+                    nextSettings && incomingSettingsVersion < settingsWriteVersionRef.current
+                      ? settingsRef.current
+                      : nextSettings || DEFAULT_SETTINGS;
+                  setSettings(resolvedSettings);
                   setScenario(nextScenario || DEFAULT_SCENARIO);
                   setForecastInput(nextForecast || DEFAULT_FORECAST);
                   setProductivity(nextProductivity || DEFAULT_PRODUCTIVITY);
@@ -1513,6 +1529,7 @@
         const monthlyLaborCost = totalLaborCost / 12;
         const avgCostPerPerson = totalPeople ? totalLaborCost / totalPeople : 0;
         const laborRatio = settings.annualRevenue ? (totalLaborCost / settings.annualRevenue) * 100 : 0;
+        const draftLaborRatio = settingsDraft.annualRevenue ? (totalLaborCost / settingsDraft.annualRevenue) * 100 : 0;
 
         const scenarioResult = useMemo(() => {
           const simulation = calculateScenarioCost({ employees, scenario, avgCostPerPerson });
@@ -2282,16 +2299,35 @@
           await addLog("productivity_update", "생산성 파라미터 변경");
         };
 
-        const saveSettings = async (patch, options = {}) => {
-          const next = { ...settingsRef.current, ...patch };
+        const updateSettingsDraft = (patch) => {
+          settingsDirtyRef.current = true;
+          setSettingsDirty(true);
+          setSettingsDraft((prev) => ({ ...prev, ...patch }));
+        };
+
+        const saveSettingsDraft = async () => {
+          if (settingsSaving) return;
+          const writeVersion = Date.now();
+          const previousWriteVersion = settingsWriteVersionRef.current;
+          const next = {
+            ...DEFAULT_SETTINGS,
+            ...settingsRef.current,
+            ...settingsDraft,
+            clientUpdatedAt: writeVersion,
+          };
+          settingsWriteVersionRef.current = writeVersion;
+          setSettingsSaving(true);
+          const saved = await saveDoc("settings_main", { type: "settings", ...next }, "기준값이 클라우드에 저장되었습니다.");
+          setSettingsSaving(false);
+          if (!saved) {
+            settingsWriteVersionRef.current = previousWriteVersion;
+            return;
+          }
           settingsRef.current = next;
           setSettings(next);
-          const saved = await saveDoc(
-            "settings_main",
-            { type: "settings", ...next },
-            options.silent ? null : "기준값이 저장되었습니다."
-          );
-          if (!saved || options.silent) return;
+          setSettingsDraft(next);
+          settingsDirtyRef.current = false;
+          setSettingsDirty(false);
           await addLog("settings_update", "기준 매출/경고치 변경");
         };
 
@@ -2615,11 +2651,23 @@
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-core mb-3">운영 기준값</h2>
                     <div className="grid md:grid-cols-2 gap-3">
-                      <NumberInput label="연간 매출(원)" value={settings.annualRevenue} onChange={(v, options) => saveSettings({ annualRevenue: v }, options)} />
-                      <NumberInput label="인건비율 경고 기준(%)" value={settings.warningLaborRatio} onChange={(v, options) => saveSettings({ warningLaborRatio: v }, options)} />
+                      <NumberInput live label="연간 매출(원)" value={settingsDraft.annualRevenue} onChange={(v) => updateSettingsDraft({ annualRevenue: v })} />
+                      <NumberInput live label="인건비율 경고 기준(%)" value={settingsDraft.warningLaborRatio} onChange={(v) => updateSettingsDraft({ warningLaborRatio: v })} />
                     </div>
-                    <div className="score-row mt-4"><span>현재 인건비율</span><b className="metric-number">{formatPercent(laborRatio)}</b></div>
-                    <div className="score-row"><span>시나리오 적용 후</span><b className="metric-number">{formatPercent(scenarioResult.ratio)}</b></div>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                      <span className={`badge-soft ${settingsDirty ? "text-amber-600" : "primary"}`}>
+                        {settingsSaving ? "클라우드 저장 중" : settingsDirty ? "저장 필요" : "클라우드 저장됨"}
+                      </span>
+                      <button
+                        className="btn-primary px-4 py-2 rounded-xl text-sm"
+                        onClick={saveSettingsDraft}
+                        disabled={!settingsDirty || settingsSaving}
+                      >
+                        {settingsSaving ? "저장 중..." : "기준값 저장"}
+                      </button>
+                    </div>
+                    <div className="score-row mt-4"><span>현재 인건비율</span><b className="metric-number">{formatPercent(draftLaborRatio)}</b></div>
+                    <div className="score-row"><span>시나리오 적용 후</span><b className="metric-number">{formatPercent(settingsDraft.annualRevenue ? (scenarioResult.total / settingsDraft.annualRevenue) * 100 : 0)}</b></div>
                   </div>
                   <div className="panel p-4 md:p-5">
                     <h2 className="section-title tone-analytics mb-3">정책 리스크 알림</h2>
@@ -2850,7 +2898,7 @@
         );
       }
 
-      function NumberInput({ label, value, onChange }) {
+      function NumberInput({ label, value, onChange, live = false }) {
         const [local, setLocal] = useState(value ?? 0);
         const lastCommittedRef = useRef(safeNumber(value));
         useEffect(() => {
@@ -2881,7 +2929,7 @@
               onChange={(e) => {
                 const next = e.target.value;
                 setLocal(next);
-                commit(next, { silent: true });
+                if (live) commit(next, { silent: true });
               }}
               onBlur={() => commit(local, { silent: false })}
               onKeyDown={(e) => {
