@@ -413,6 +413,10 @@
         border: 1px solid rgba(220, 38, 38, 0.35);
         color: #dc2626;
       }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
       .kpi-card {
         position: relative;
         overflow: hidden;
@@ -1148,6 +1152,7 @@
 
         const [employeeModal, setEmployeeModal] = useState({ open: false, mode: "create", target: null });
         const [deleteTarget, setDeleteTarget] = useState(null);
+        const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
         const [activeSection, setActiveSection] = useState("overview");
         const [peopleSearch, setPeopleSearch] = useState("");
         const [peopleDept, setPeopleDept] = useState("all");
@@ -1494,6 +1499,41 @@
         const peoplePageSize = 20;
         const peoplePageCount = Math.max(Math.ceil(filteredEmployees.length / peoplePageSize), 1);
         const pagedEmployees = filteredEmployees.slice((peoplePage - 1) * peoplePageSize, peoplePage * peoplePageSize);
+        const selectedEmployeeIdSet = useMemo(() => new Set(selectedEmployeeIds), [selectedEmployeeIds]);
+        const selectedEmployees = useMemo(() => {
+          const byId = new Map(employees.map((employee) => [employee.id, employee]));
+          return selectedEmployeeIds.map((id) => byId.get(id)).filter(Boolean);
+        }, [employees, selectedEmployeeIds]);
+        const allPagedEmployeesSelected =
+          pagedEmployees.length > 0 && pagedEmployees.every((employee) => selectedEmployeeIdSet.has(employee.id));
+        const somePagedEmployeesSelected = pagedEmployees.some((employee) => selectedEmployeeIdSet.has(employee.id));
+
+        const toggleEmployeeSelection = (employeeId, checked) => {
+          setSelectedEmployeeIds((prev) => {
+            if (checked) {
+              return prev.includes(employeeId) ? prev : [...prev, employeeId];
+            }
+            return prev.filter((id) => id !== employeeId);
+          });
+        };
+
+        const togglePagedEmployeeSelection = (checked) => {
+          setSelectedEmployeeIds((prev) => {
+            const next = new Set(prev);
+            pagedEmployees.forEach((employee) => {
+              if (checked) {
+                next.add(employee.id);
+              } else {
+                next.delete(employee.id);
+              }
+            });
+            return [...next];
+          });
+        };
+
+        const selectFilteredEmployees = () => {
+          setSelectedEmployeeIds(filteredEmployees.map((employee) => employee.id));
+        };
 
         useEffect(() => {
           setPeoplePage(1);
@@ -1501,6 +1541,13 @@
         useEffect(() => {
           setPeoplePage((page) => Math.min(Math.max(page, 1), peoplePageCount));
         }, [peoplePageCount]);
+        useEffect(() => {
+          const employeeIds = new Set(employees.map((employee) => employee.id));
+          setSelectedEmployeeIds((prev) => {
+            const next = prev.filter((id) => employeeIds.has(id));
+            return next.length === prev.length ? prev : next;
+          });
+        }, [employees]);
 
         const autoCauseSummary = useMemo(() => {
           const contributions = [
@@ -2032,31 +2079,47 @@
           }
         };
 
+        const deleteEmployeeRecord = async (employee, { fns, db }) => {
+          if (employee.source === "hr_manager" && employee.sourceDocId) {
+            const key = sourceExclusionKey(employee.source, employee.sourceDocId);
+            sourceExclusionsRef.current = new Set([...sourceExclusionsRef.current, key]);
+            await fns.setDoc(
+              fns.doc(db, SHARED_COLLECTION, sourceExclusionDocId(employee.source, employee.sourceDocId)),
+              {
+                type: SOURCE_EXCLUSION_TYPE,
+                source: employee.source,
+                sourcePath: employee.sourcePath || HR_MANAGER_SOURCE_PATH,
+                sourceDocId: employee.sourceDocId,
+                employeeDocId: employee.id,
+                employeeName: employee.name || "",
+                createdAt: fns.serverTimestamp(),
+                updatedAt: fns.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+          await fns.deleteDoc(fns.doc(db, SHARED_COLLECTION, employee.id));
+        };
+
         const deleteEmployee = async () => {
-          if (!deleteTarget) return;
+          const targets = deleteTarget?.bulk ? deleteTarget.employees || [] : deleteTarget ? [deleteTarget] : [];
+          if (!targets.length) return;
           try {
             const { fns, db } = services;
-            if (deleteTarget.source === "hr_manager" && deleteTarget.sourceDocId) {
-              const key = sourceExclusionKey(deleteTarget.source, deleteTarget.sourceDocId);
-              sourceExclusionsRef.current = new Set([...sourceExclusionsRef.current, key]);
-              await fns.setDoc(
-                fns.doc(db, SHARED_COLLECTION, sourceExclusionDocId(deleteTarget.source, deleteTarget.sourceDocId)),
-                {
-                  type: SOURCE_EXCLUSION_TYPE,
-                  source: deleteTarget.source,
-                  sourcePath: deleteTarget.sourcePath || HR_MANAGER_SOURCE_PATH,
-                  sourceDocId: deleteTarget.sourceDocId,
-                  employeeDocId: deleteTarget.id,
-                  employeeName: deleteTarget.name || "",
-                  createdAt: fns.serverTimestamp(),
-                  updatedAt: fns.serverTimestamp(),
-                },
-                { merge: true }
-              );
+            for (let i = 0; i < targets.length; i += 25) {
+              const chunk = targets.slice(i, i + 25);
+              await Promise.all(chunk.map((employee) => deleteEmployeeRecord(employee, { fns, db })));
             }
-            await fns.deleteDoc(fns.doc(db, SHARED_COLLECTION, deleteTarget.id));
-            await addLog("employee_delete", `${deleteTarget.name}/${deleteTarget.department}`);
-            setToast({ type: "success", message: "직원 정보가 삭제되었습니다." });
+            const deletedIds = new Set(targets.map((employee) => employee.id));
+            setSelectedEmployeeIds((prev) => prev.filter((id) => !deletedIds.has(id)));
+            await addLog(
+              deleteTarget?.bulk ? "employee_bulk_delete" : "employee_delete",
+              deleteTarget?.bulk ? `${targets.length}명 삭제` : `${targets[0].name}/${targets[0].department}`
+            );
+            setToast({
+              type: "success",
+              message: deleteTarget?.bulk ? `${targets.length}명 삭제 완료` : "직원 정보가 삭제되었습니다.",
+            });
           } catch (error) {
             console.error(error);
             setToast({ type: "error", message: "삭제에 실패했습니다." });
@@ -2090,6 +2153,17 @@
         };
 
         const activeMeta = VIEW_META[activeSection] || VIEW_META.overview;
+        const deleteConfirmEmployees = deleteTarget?.bulk ? deleteTarget.employees || [] : deleteTarget ? [deleteTarget] : [];
+        const deleteConfirmTitle = deleteTarget?.bulk
+          ? `선택한 직원 ${formatNumber(deleteConfirmEmployees.length)}명을 삭제할까요?`
+          : "직원 정보를 삭제할까요?";
+        const deleteConfirmMessage = deleteTarget?.bulk
+          ? `${deleteConfirmEmployees.slice(0, 5).map((employee) => employee.name || "이름 없음").join(", ")}${
+              deleteConfirmEmployees.length > 5 ? ` 외 ${formatNumber(deleteConfirmEmployees.length - 5)}명` : ""
+            }`
+          : deleteTarget
+            ? `${deleteTarget.name} / ${deleteTarget.department}`
+            : "";
 
         if (!firebaseReady || loading) {
           return <Spinner label="Firebase 연결 및 데이터 동기화 중..." />;
@@ -2100,8 +2174,8 @@
             <Toast toast={toast} onClose={() => setToast(null)} />
             <ConfirmModal
               open={!!deleteTarget}
-              title="직원 정보를 삭제할까요?"
-              message={deleteTarget ? `${deleteTarget.name} / ${deleteTarget.department}` : ""}
+              title={deleteConfirmTitle}
+              message={deleteConfirmMessage}
               onCancel={() => setDeleteTarget(null)}
               onConfirm={deleteEmployee}
             />
@@ -2281,6 +2355,30 @@
                     양식은 CSV 파일입니다. 월급제는 이름과 월기본급, 시급제는 이름과 시급이 필수입니다.
                     시급제의 월소정근로시간은 비워두면 209시간으로 계산되며, 나머지 금액 항목은 비워두면 0으로 처리됩니다.
                   </div>
+                  <div className="flex flex-wrap items-center gap-2 mb-3 no-print">
+                    <span className="badge-soft">선택 {formatNumber(selectedEmployeeIds.length)}명</span>
+                    <button
+                      className="btn-secondary px-3 py-2 rounded-xl text-sm"
+                      onClick={selectFilteredEmployees}
+                      disabled={!filteredEmployees.length}
+                    >
+                      필터 결과 전체 선택
+                    </button>
+                    <button
+                      className="btn-secondary px-3 py-2 rounded-xl text-sm"
+                      onClick={() => setSelectedEmployeeIds([])}
+                      disabled={!selectedEmployeeIds.length}
+                    >
+                      선택 해제
+                    </button>
+                    <button
+                      className="btn-danger px-3 py-2 rounded-xl text-sm"
+                      onClick={() => setDeleteTarget({ bulk: true, employees: selectedEmployees })}
+                      disabled={!selectedEmployees.length}
+                    >
+                      <i className="fa-solid fa-trash-can mr-2"></i>일괄삭제
+                    </button>
+                  </div>
                   <div className="table-toolbar no-print">
                     <input className="toolbar-input" value={peopleSearch} onChange={(e) => setPeopleSearch(e.target.value)} placeholder="이름, 부서, 직급 검색" />
                     <select className="toolbar-input" value={peopleDept} onChange={(e) => setPeopleDept(e.target.value)}>
@@ -2300,6 +2398,17 @@
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-left border-b border-slate-200">
+                          <th className="w-10 no-print">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4"
+                              aria-label="현재 페이지 직원 선택"
+                              aria-checked={somePagedEmployeesSelected && !allPagedEmployeesSelected ? "mixed" : allPagedEmployeesSelected}
+                              checked={allPagedEmployeesSelected}
+                              disabled={!pagedEmployees.length}
+                              onChange={(event) => togglePagedEmployeeSelection(event.target.checked)}
+                            />
+                          </th>
                           <th className="py-2">이름</th>
                           <th>부서</th>
                           <th>직급</th>
@@ -2313,6 +2422,15 @@
                       <tbody>
                         {pagedEmployees.map((e) => (
                           <tr key={e.id} className="border-b border-slate-100">
+                            <td className="py-2 no-print">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                aria-label={`${e.name || "직원"} 선택`}
+                                checked={selectedEmployeeIdSet.has(e.id)}
+                                onChange={(event) => toggleEmployeeSelection(e.id, event.target.checked)}
+                              />
+                            </td>
                             <td className="py-2 font-semibold">{e.name || "-"}</td>
                             <td>{e.department || "미지정"}</td>
                             <td>{e.grade || "미지정"}</td>
@@ -2333,7 +2451,7 @@
                           </tr>
                         ))}
                         {!pagedEmployees.length && (
-                          <tr><td colSpan="8" className="empty-state">조회 조건에 맞는 직원이 없습니다.</td></tr>
+                          <tr><td colSpan="9" className="empty-state">조회 조건에 맞는 직원이 없습니다.</td></tr>
                         )}
                       </tbody>
                     </table>
